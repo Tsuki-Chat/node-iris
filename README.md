@@ -213,5 +213,5 @@ new IrisLink(irisUrl: string)
 
 ## 참조
 
-Irispy2 and Kakaolink by [@ye-seola](https://github.com/ye-seola)  
-irispy-client by [@dolidolih](https://github.com/dolidolih)
+- Irispy2 and Kakaolink by [@ye-seola](https://github.com/ye-seola)
+- irispy-client by [@dolidolih](https://github.com/dolidolih)
