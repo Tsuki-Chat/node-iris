@@ -2,20 +2,6 @@
 
 node-iris는 Python으로 작성된 [irispy-client](https://github.com/dolidolih/irispy-client) 모듈의 Node.js(TypeScript) 포팅 버전입니다. 카카오톡 봇 개발을 위한 기능을 제공합니다.
 
-## 버전 관리
-
-해당 패키지의 버전 관리 규칙은 아래와 같습니다:
-
-- **irispy-client 0.1.6** → **node-iris 1.6.x**
-- **메이저.마이너**: irispy-client의 버전을 따름 (0.1.6 → 1.6)
-- **패치**: node-iris의 자체적인 버그 수정 및 개선사항 (1.6.0, 1.6.1, 1.6.2, ...)
-
-예시:
-
-- `node-iris 1.6.0`: irispy-client 0.1.6 포팅
-- `node-iris 1.6.1`: 자체 버그 수정 등
-- `node-iris 1.6.2`: 자체 기능 개선 등
-
 ## 설치
 
 ```bash
@@ -29,7 +15,7 @@ pnpm install @racla-dev/node-iris
 프로젝트 루트에 `.env` 파일을 생성하고 다음과 같이 설정하세요:
 
 ```env
-# Iris 서버 URL (IP:PORT 형식)
+# Iris URL (IP:PORT 형식)
 IRIS_URL=127.0.0.1:3000
 
 # 최대 워커 스레드 수 (선택사항)
@@ -37,6 +23,12 @@ MAX_WORKERS=4
 
 # 차단된 사용자 ID 목록 (쉼표로 구분, 선택사항)
 BANNED_USERS=123456789,987654321
+
+# 카카오 앱 키 (선택사항)
+KAKAOLINK_APP_KEY=your_kakao_app_key
+
+# 카카오 앱 사이트 도메인 (선택사항)
+KAKAOLINK_ORIGIN=your_origin
 ```
 
 ## 기본 사용법
@@ -127,15 +119,6 @@ try {
 }
 ```
 
-#### KakaoLink 설정
-
-환경변수에 다음을 추가하세요:
-
-```env
-KAKAOLINK_APP_KEY=your_kakao_app_key
-KAKAOLINK_ORIGIN=your_origin
-```
-
 ## API 참조
 
 ### Bot 클래스
@@ -149,42 +132,52 @@ new Bot(irisUrl: string, options?: { maxWorkers?: number })
 #### 메서드
 
 - `on(event: string, handler: Function)`: 이벤트 핸들러 등록
-- `run()`: 봇 실행 (비동기)
-- `stop()`: 봇 중지
+- `run(): Promise<void>`: 봇 실행 (비동기)
+- `stop(): void`: 봇 중지
 
 ### ChatContext 클래스
 
 #### 속성
 
-- `room`: 채팅방 정보
-- `sender`: 발신자 정보
-- `message`: 메시지 정보
-- `raw`: 원시 데이터
-- `api`: API 인스턴스
+- `room: Room`: 채팅방 정보
+- `sender: User`: 발신자 정보
+- `message: Message`: 메시지 정보
+- `raw: any`: 원시 데이터
+- `api: IIrisAPI`: API 인스턴스
 
 #### 메서드
 
-- `reply(message: string, roomId?: number)`: 답장 보내기
-- `replyMedia(files: Buffer[], roomId?: number)`: 미디어 파일 보내기
+- `reply(message: string, roomId?: string | number): Promise<any>`: 답장 보내기
+- `replyMedia(files: Buffer[], roomId?: string | number): Promise<any>`: 미디어 파일 보내기
+- `getSource(): Promise<ChatContext | null>`: 답장하는 메시지의 ChatContext 반환
+- `getNextChat(n?: number): Promise<ChatContext | null>`: 다음 메시지의 ChatContext 반환
+- `getPreviousChat(n?: number): Promise<ChatContext | null>`: 이전 메시지의 ChatContext 반환
 
 ### Message 클래스
 
 #### 속성
 
-- `id`: 메시지 ID
-- `type`: 메시지 타입
-- `msg`: 메시지 내용
-- `command`: 명령어 (첫 번째 단어)
-- `param`: 매개변수 (나머지 부분)
-- `hasParam`: 매개변수 존재 여부
-- `image`: 이미지 정보 (있는 경우)
+- `id: string`: 메시지 ID _(Python: int → TypeScript: string)_
+- `type: number`: 메시지 타입
+- `msg: string`: 메시지 내용
+- `attachment: any`: 메시지 첨부 파일
+- `v: any`: 추가 메시지 데이터
+- `command: string`: 명령어 (첫 번째 단어)
+- `param: string`: 매개변수 (나머지 부분)
+- `hasParam: boolean`: 매개변수 존재 여부
+- `image: ChatImage | null`: 이미지 정보 (있는 경우)
 
 ### User 클래스
 
+#### 속성
+
+- `id: string`: 사용자 ID _(Python: int → TypeScript: string)_
+- `avatar: Avatar`: 사용자의 Avatar 객체
+
 #### 메서드
 
-- `getName()`: 사용자 이름 조회 (비동기)
-- `getType()`: 사용자 권한 조회 (비동기)
+- `getName(): Promise<string>`: 사용자 이름 조회 (비동기, 캐시됨)
+- `getType(): Promise<string>`: 사용자 권한 조회 (비동기, 캐시됨)
 
 #### 사용자 권한
 
@@ -195,27 +188,59 @@ new Bot(irisUrl: string, options?: { maxWorkers?: number })
 
 ### Room 클래스
 
+#### 속성
+
+- `id: string`: 방 ID _(Python: int → TypeScript: string)_
+- `name: string`: 방 이름
+
 #### 메서드
 
-- `getType()`: 채팅방 타입 조회 (비동기)
+- `getType(): Promise<string>`: 채팅방 타입 조회 (비동기, 캐시됨)
+
+### Avatar 클래스
+
+#### 속성
+
+- `id: string`: 아바타 ID _(Python: int → TypeScript: string)_
+
+#### 메서드
+
+- `getUrl(): Promise<string>`: 아바타 이미지 URL 조회 (비동기, 캐시됨)
+- `getImg(): Promise<Buffer>`: 아바타 이미지 데이터 조회 (비동기, 캐시됨)
+
+### ChatImage 클래스
+
+#### 속성
+
+- `url: string[]`: 이미지 URL 목록
+
+#### 메서드
+
+- `getImg(): Promise<Buffer[]>`: 이미지 데이터 목록 조회 (비동기, 캐시됨)
 
 ### IrisLink 클래스
 
 #### 생성자
 
 ```typescript
-new IrisLink(irisUrl: string)
+new IrisLink(
+  irisUrl: string,
+  defaultAppKey?: string,
+  defaultOrigin?: string
+)
 ```
 
 #### 메서드
 
-- `send(receiverName, templateId, templateArgs)`: 템플릿 메시지 전송 (비동기)
+- `send(receiverName: string, templateId: number, templateArgs: Record<string, any>, options?: object): Promise<void>`: 템플릿 메시지 전송 (비동기)
+- `init(): Promise<void>`: 초기화 및 로그인 (비동기)
 
 #### 예외 클래스
 
 - `KakaoLinkException`: 일반적인 KakaoLink 오류
 - `KakaoLinkReceiverNotFoundException`: 받는 사람을 찾을 수 없음
 - `KakaoLinkLoginException`: 로그인 관련 오류
+- `KakaoLink2FAException`: 2단계 인증 관련 오류
 - `KakaoLinkSendException`: 메시지 전송 오류
 
 ## 예시
