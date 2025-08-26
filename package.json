@@ -1,6 +1,6 @@
 {
   "name": "@racla-dev/node-iris",
-  "version": "0.1.6",
+  "version": "1.6.0",
   "description": "TypeScript port of Python irispy-client module for KakaoTalk bot development",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
