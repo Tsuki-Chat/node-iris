@@ -2,13 +2,13 @@
 
 node-iris는 Python으로 작성된 [irispy-client](https://github.com/dolidolih/irispy-client) 모듈의 Node.js(TypeScript) 포팅 버전입니다. 카카오톡 봇 개발을 위한 기능을 제공합니다.
 
-## 버전 정책
+## 버전 관리
 
-이 패키지는 [irispy-client](https://github.com/dolidolih/irispy-client)의 버전을 기준으로 합니다:
+해당 패키지의 버전 관리 규칙은 아래와 같습니다:
 
 - **irispy-client 0.1.6** → **node-iris 1.6.x**
-- **메이저.마이너**: 원본 Python 버전을 따름 (0.1.6 → 1.6)
-- **패치**: 자체적인 버그 수정 및 개선사항 (1.6.0, 1.6.1, 1.6.2, ...)
+- **메이저.마이너**: irispy-client의 버전을 따름 (0.1.6 → 1.6)
+- **패치**: node-iris의 자체적인 버그 수정 및 개선사항 (1.6.0, 1.6.1, 1.6.2, ...)
 
 예시:
 
@@ -107,7 +107,11 @@ import {
   KakaoLinkSendException,
 } from '@racla-dev/node-iris';
 
-const link = new IrisLink(process.env.IRIS_URL);
+const link = new IrisLink(
+  process.env.IRIS_URL,
+  process.env.KAKAOLINK_APP_KEY,
+  process.env.KAKAOLINK_ORIGIN
+);
 
 try {
   // 템플릿을 사용한 메시지 전송

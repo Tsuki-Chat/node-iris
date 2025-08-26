@@ -41,7 +41,7 @@ export class Bot {
     const urlParts = this.irisUrl.split(':');
     if (urlParts.length !== 2 || urlParts[0].split('.').length !== 4) {
       throw new Error(
-        'Iris endpoint 주소는 IP:PORT 형식이어야 합니다. ex) 172.30.10.66:3000'
+        'Iris endpoint Address must be in IP:PORT format. ex) 172.30.10.66:3000'
       );
     }
 
@@ -105,18 +105,18 @@ export class Bot {
         // Wait for the connection to close
         await this.waitForDisconnection();
 
-        console.log('연결이 끊어졌습니다. 재연결을 시도합니다...');
+        console.log('Connection lost. Attempting to reconnect...');
       } catch (error) {
-        console.error('연결 오류:', error);
+        console.error('Connection error:', error);
 
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          console.error('최대 재연결 시도 횟수에 도달했습니다. 종료합니다.');
+          console.error('Maximum reconnect attempts reached. Stopping.');
           throw error;
         }
 
         this.reconnectAttempts++;
         console.log(
-          `${this.reconnectDelay}ms 후 재연결 시도... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+          `Reconnecting in ${this.reconnectDelay}ms... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
         );
 
         await this.sleep(this.reconnectDelay);
@@ -130,12 +130,12 @@ export class Bot {
       this.ws = new WebSocket(this.irisWsEndpoint);
 
       const connectTimeout = setTimeout(() => {
-        reject(new Error('연결 시간 초과'));
+        reject(new Error('Connection timed out'));
       }, 10000);
 
       this.ws.on('open', async () => {
         clearTimeout(connectTimeout);
-        console.log('웹소켓에 연결되었습니다');
+        console.log('WebSocket connected');
 
         try {
           const info = await this.api.getInfo();
@@ -160,7 +160,7 @@ export class Bot {
 
           this.processIrisRequest(processedData as IrisRequest);
         } catch (error) {
-          console.error('Iris 이벤트를 처리 중 오류가 발생했습니다:', error);
+          console.error('Iris event processing error occurred:', error);
         }
       });
 

@@ -45,7 +45,7 @@ export function isReply(
       context.raw.attachment.reply;
 
     if (!isMessageReply) {
-      await context.reply('메세지에 답장하여 요청하세요.');
+      await context.reply('Please reply to a message to make this request.');
       return;
     }
 
@@ -138,7 +138,7 @@ export const decorators = {
         context.raw.attachment.reply;
 
       if (!isMessageReply) {
-        await context.reply('메세지에 답장하여 요청하세요.');
+        await context.reply('Please reply to a message to make this request.');
         return;
       }
 

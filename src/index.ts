@@ -52,14 +52,9 @@ export { Config } from './utils/config';
 
 // Types
 export type { EventHandler, ErrorHandler } from './services/Bot';
-export type {
-  KakaoLinkTemplate,
-  SearchFrom,
-  SearchRoomType,
-} from './services/IrisLink';
 
 // Version
-export const version = '1.6.4';
+export const version = '1.6.15';
 export const irispy_client_version = '0.1.6';
 
 // Default export is the Bot class for convenience

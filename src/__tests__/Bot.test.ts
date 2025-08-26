@@ -46,7 +46,7 @@ describe('Bot', () => {
 
     test('should validate URL format', () => {
       expect(() => new Bot('invalid-url')).toThrow(
-        'Iris endpoint 주소는 IP:PORT 형식이어야 합니다. ex) 172.30.10.66:3000'
+        'Iris endpoint Address must be in IP:PORT format. ex) 172.30.10.66:3000'
       );
     });
 

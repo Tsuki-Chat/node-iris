@@ -31,16 +31,16 @@ export class IrisAPI implements IIrisAPI {
       const data = response.data;
 
       if (response.status < 200 || response.status >= 300) {
-        console.error(`Iris 오류: ${response.status}`);
-        throw new Error(`Iris 오류: ${data?.message || '알 수 없는 오류'}`);
+        console.error(`Iris error: ${response.status}`);
+        throw new Error(`Iris error: ${data?.message || 'Unknown error'}`);
       }
 
       return data;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('Iris 오류')) {
+      if (error instanceof Error && error.message.includes('Iris error')) {
         throw error;
       }
-      throw new Error(`Iris 응답 JSON 파싱 오류: ${response.data}`);
+      throw new Error(`Iris response JSON parsing error: ${response.data}`);
     }
   }
 
@@ -66,7 +66,7 @@ export class IrisAPI implements IIrisAPI {
 
       if (data.length === 0) {
         console.error(
-          '이미지 전송이 모두 실패하였습니다. 이미지 전송 요청 부분을 확인해주세요.'
+          'Reply media failed. please check the image sending request part.'
         );
         return;
       }

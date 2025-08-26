@@ -3,7 +3,8 @@
  * https://github.com/ye-seola/kakaolink-py
  */
 
-import axios, { AxiosInstance } from 'axios';
+import got, { Got } from 'got';
+import { CookieJar } from 'tough-cookie';
 import { v4 as uuid4 } from 'uuid';
 
 const KAKAOTALK_VERSION = '25.2.1';
@@ -12,31 +13,50 @@ const ANDROID_WEBVIEW_UA =
   'Mozilla/5.0 (Linux; Android 13; SM-G998B Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/114.0.5735.60 Mobile Safari/537.36';
 
 // Exception classes
-export class KakaoLinkException extends Error {}
-export class KakaoLinkReceiverNotFoundException extends KakaoLinkException {}
-export class KakaoLinkLoginException extends KakaoLinkException {}
-export class KakaoLink2FAException extends KakaoLinkException {}
-export class KakaoLinkSendException extends KakaoLinkException {}
-
-export interface KakaoLinkTemplate {
-  [key: string]: any;
+export class KakaoLinkException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'KakaoLinkException';
+  }
 }
 
-export type SearchFrom = 'ALL' | 'FRIENDS' | 'CHATROOMS';
-export type SearchRoomType =
-  | 'ALL'
-  | 'OpenMultiChat'
-  | 'MultiChat'
-  | 'DirectChat';
+export class KakaoLinkReceiverNotFoundException extends KakaoLinkException {
+  constructor() {
+    super('Receiver not found');
+    this.name = 'KakaoLinkReceiverNotFoundException';
+  }
+}
 
+export class KakaoLinkLoginException extends KakaoLinkException {
+  constructor() {
+    super('Login failed');
+    this.name = 'KakaoLinkLoginException';
+  }
+}
+
+export class KakaoLink2FAException extends KakaoLinkException {
+  constructor() {
+    super('2FA failed');
+    this.name = 'KakaoLink2FAException';
+  }
+}
+
+export class KakaoLinkSendException extends KakaoLinkException {
+  constructor() {
+    super('Send failed');
+    this.name = 'KakaoLinkSendException';
+  }
+}
+
+// Python's KakaoLinkCookieStorage equivalent
 class KakaoLinkCookieStorage {
-  private localStorage: Record<string, any> = {};
+  private localStorage: Record<string, string> = {};
 
-  async save(cookies: Record<string, any>): Promise<void> {
+  async save(cookies: Record<string, string>): Promise<void> {
     this.localStorage = cookies;
   }
 
-  async load(): Promise<Record<string, any>> {
+  async load(): Promise<Record<string, string>> {
     return this.localStorage;
   }
 
@@ -45,6 +65,7 @@ class KakaoLinkCookieStorage {
   }
 }
 
+// Python's KakaoLinkAuthorizationProvider equivalent
 class KakaoLinkAuthorizationProvider {
   private irisUrl: string;
 
@@ -53,78 +74,83 @@ class KakaoLinkAuthorizationProvider {
   }
 
   async getAuthorization(): Promise<string> {
-    const response = await axios.get(`${this.irisUrl}/aot`);
-    const aot = response.data.aot;
-    return `${aot.access_token}-${aot.d_id}`;
+    const response = await got.get(`${this.irisUrl}/aot`).json<any>();
+    const aot = response.aot;
+    const accessToken = `${aot.access_token}-${aot.d_id}`;
+    return accessToken;
   }
 }
 
+// Main KakaoLink class - equivalent to Python's KakaoLink
 export class KakaoLink {
   private defaultAppKey?: string;
   private defaultOrigin?: string;
-  private cookies: Record<string, any> = {};
-  private sendLock = false;
-  private authorizationProvider: KakaoLinkAuthorizationProvider;
-  private cookieStorage: KakaoLinkCookieStorage;
-  private httpClient: AxiosInstance;
+  private _cookies: Record<string, string> = {};
+  private _sendLock = false; // Simple boolean lock instead of Python's asyncio.Lock()
+  private _authorizationProvider: KakaoLinkAuthorizationProvider;
+  private _cookieStorage: KakaoLinkCookieStorage;
 
   constructor(irisUrl: string, defaultAppKey?: string, defaultOrigin?: string) {
     this.defaultAppKey = defaultAppKey;
     this.defaultOrigin = defaultOrigin;
-    this.authorizationProvider = new KakaoLinkAuthorizationProvider(irisUrl);
-    this.cookieStorage = new KakaoLinkCookieStorage();
-
-    this.httpClient = axios.create({
-      timeout: 30000,
-      validateStatus: () => true, // Don't throw on HTTP errors
-    });
+    this._authorizationProvider = new KakaoLinkAuthorizationProvider(irisUrl);
+    this._cookieStorage = new KakaoLinkCookieStorage();
   }
 
+  // Identical to Python's send method
   async send(
     receiverName: string,
     templateId: number,
-    templateArgs: KakaoLinkTemplate,
+    templateArgs: Record<string, any>,
     appKey?: string,
     origin?: string,
     searchExact: boolean = true,
-    searchFrom: SearchFrom = 'ALL',
-    searchRoomType: SearchRoomType = 'ALL'
+    searchFrom: 'ALL' | 'FRIENDS' | 'CHATROOMS' = 'ALL',
+    searchRoomType: 'ALL' | 'OpenMultiChat' | 'MultiChat' | 'DirectChat' = 'ALL'
   ): Promise<void> {
-    const finalAppKey = appKey || this.defaultAppKey;
-    const finalOrigin = origin || this.defaultOrigin;
+    appKey = appKey || this.defaultAppKey;
+    origin = origin || this.defaultOrigin;
 
-    if (!finalAppKey || !finalOrigin) {
-      throw new KakaoLinkException(
-        'app_key 또는 origin은 비어있을 수 없습니다'
-      );
+    if (!appKey || !origin) {
+      throw new KakaoLinkException('app_key or origin cannot be empty');
     }
 
-    const ka = this.getKa(finalOrigin);
+    const ka = this._getKa(origin);
 
-    // Simple lock mechanism
-    while (this.sendLock) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    // Python's async with self._send_lock:
+    if (this._sendLock) {
+      while (this._sendLock) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
     }
-    this.sendLock = true;
+    this._sendLock = true;
 
     try {
-      const pickerData = await this.getPickerData(
-        finalAppKey,
+      // Python's async with httpx.AsyncClient(cookies=self._cookies) as client:
+      const client = this._createHttpClient();
+
+      const pickerData = await this._getPickerData(
+        client,
+        appKey,
         ka,
         templateId,
         templateArgs
       );
 
-      const checksum = pickerData.checksum;
-      const csrf = pickerData.csrfToken;
-      const shortKey = pickerData.shortKey;
+      let checksum: string;
+      let csrf: string;
+      let shortKey: string;
 
-      if (!checksum || !csrf || !shortKey) {
-        console.error('카카오링크 전송: 전송 실패', pickerData);
+      try {
+        checksum = pickerData['checksum'];
+        csrf = pickerData['csrfToken'];
+        shortKey = pickerData['shortKey'];
+      } catch (error) {
+        console.error('KakaoLink send: Send failed', pickerData);
         throw new KakaoLinkSendException();
       }
 
-      const receiver = this.pickerDataSearch(
+      const receiver = this._pickerDataSearch(
         receiverName,
         pickerData,
         searchExact,
@@ -132,68 +158,69 @@ export class KakaoLink {
         searchRoomType
       );
 
-      await this.pickerSend(finalAppKey, shortKey, checksum, csrf, receiver);
+      await this._pickerSend(
+        client,
+        appKey,
+        shortKey,
+        checksum,
+        csrf,
+        receiver
+      );
     } finally {
-      this.sendLock = false;
+      this._sendLock = false;
     }
   }
 
-  private async pickerSend(
+  // Identical to Python's _picker_send
+  private async _pickerSend(
+    client: Got,
     appKey: string,
     shortKey: string,
     checksum: string,
     csrf: string,
     receiver: any
   ): Promise<void> {
-    const receiverData = Buffer.from(JSON.stringify(receiver), 'utf8').toString(
-      'base64url'
-    );
-
-    const response = await this.httpClient.post(
-      'https://sharer.kakao.com/picker/send',
-      new URLSearchParams({
+    const response = await client.post('https://sharer.kakao.com/picker/send', {
+      form: {
         app_key: appKey,
         short_key: shortKey,
         checksum: checksum,
         _csrf: csrf,
-        receiver: receiverData,
-      }),
-      {
-        headers: {
-          ...this.getWebHeaders(),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      }
-    );
+        receiver: Buffer.from(JSON.stringify(receiver)).toString('base64url'),
+      },
+    });
 
-    if (response.status === 400) {
-      console.error('카카오링크 전송: 전송 실패', response.status);
+    if (response.statusCode === 400) {
+      console.error('KakaoLink send: Send failed', response.statusCode);
       throw new KakaoLinkSendException();
     }
   }
 
-  private pickerDataSearch(
+  // Identical to Python's _picker_data_search
+  private _pickerDataSearch(
     receiverName: string,
     pickerData: any,
     searchExact: boolean,
-    searchFrom: SearchFrom,
-    searchRoomType: SearchRoomType
+    searchFrom: 'ALL' | 'FRIENDS' | 'CHATROOMS',
+    searchRoomType: 'ALL' | 'OpenMultiChat' | 'MultiChat' | 'DirectChat'
   ): any {
     const receivers = [
       ...(searchFrom === 'ALL' || searchFrom === 'CHATROOMS'
-        ? pickerData.chats || []
+        ? pickerData['chats'] || []
         : []),
       ...(searchFrom === 'ALL' || searchFrom === 'FRIENDS'
-        ? pickerData.friends || []
+        ? pickerData['friends'] || []
         : []),
     ];
 
     for (const receiver of receivers) {
-      const currentChatType = receiver.chat_room_type;
-      const currentTitle = receiver.title || receiver.profile_nickname || '';
+      const currentChatType = receiver['chat_room_type'];
+      const currentTitle =
+        receiver['title'] || receiver['profile_nickname'] || '';
 
-      // 챗방일 때 타입 체크
+      // When it's a chat room
       if (currentChatType) {
+        // When search room type is specified and different from current type
         if (searchRoomType !== 'ALL' && searchRoomType !== currentChatType) {
           continue;
         }
@@ -213,15 +240,17 @@ export class KakaoLink {
     throw new KakaoLinkReceiverNotFoundException();
   }
 
-  private async getPickerData(
+  // Identical to Python's _get_picker_data
+  private async _getPickerData(
+    client: Got,
     appKey: string,
     ka: string,
     templateId: number,
-    templateArgs: KakaoLinkTemplate
+    templateArgs: Record<string, any>
   ): Promise<any> {
-    let response = await this.httpClient.post(
-      'https://sharer.kakao.com/picker/link',
-      new URLSearchParams({
+    let res = await client.post('https://sharer.kakao.com/picker/link', {
+      headers: { ...this._getWebHeaders() },
+      form: {
         app_key: appKey,
         ka: ka,
         validation_action: 'custom',
@@ -230,239 +259,339 @@ export class KakaoLink {
           template_id: templateId,
           template_args: templateArgs,
         }),
-      }),
-      {
-        headers: {
-          ...this.getWebHeaders(),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        maxRedirects: 5,
-      }
-    );
+      },
+      followRedirect: false, // Manually handle redirects
+      maxRedirects: 0,
+    });
 
-    // Handle login redirect
-    if (response.request.res.responseUrl?.includes('/login')) {
-      const continueUrl = new URL(
-        response.request.res.responseUrl
-      ).searchParams.get('continue');
-      await this.login();
+    // Manual redirect handling
+    let redirectCount = 0;
+    while (
+      res.statusCode >= 300 &&
+      res.statusCode < 400 &&
+      redirectCount < 10
+    ) {
+      const location = res.headers.location;
+      if (!location) break;
+
+      redirectCount++;
+
+      // Convert relative URL to absolute URL
+      let redirectUrl = location;
+      if (location.startsWith('/')) {
+        redirectUrl = `https://sharer.kakao.com${location}`;
+      } else if (!location.startsWith('http')) {
+        redirectUrl = `https://sharer.kakao.com/${location}`;
+      }
+
+      res = await client.get(redirectUrl, {
+        headers: { ...this._getWebHeaders() },
+        followRedirect: false,
+        maxRedirects: 0,
+      });
+    }
+
+    // Python's if res.url.path.startswith("/login"):
+    const finalUrl = res.url || res.headers.location || '';
+    const urlPath = finalUrl ? new URL(finalUrl).pathname : '';
+
+    if (urlPath.startsWith('/login')) {
+      const continueUrl = finalUrl
+        ? new URL(finalUrl).searchParams.get('continue')
+        : null;
+
+      await this._login(client);
 
       if (continueUrl) {
-        response = await this.httpClient.get(continueUrl, {
-          headers: this.getWebHeaders(),
-          maxRedirects: 5,
+        res = await client.get(continueUrl, {
+          headers: { ...this._getWebHeaders() },
+          followRedirect: false,
+          maxRedirects: 0,
+        });
+
+        // Continue URL redirect handling as well
+        redirectCount = 0;
+        while (
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          redirectCount < 10
+        ) {
+          const location = res.headers.location;
+          if (!location) break;
+
+          redirectCount++;
+
+          // Convert relative URL to absolute URL
+          let redirectUrl = location;
+          if (location.startsWith('/')) {
+            redirectUrl = `https://sharer.kakao.com${location}`;
+          } else if (!location.startsWith('http')) {
+            redirectUrl = `https://sharer.kakao.com/${location}`;
+          }
+
+          res = await client.get(redirectUrl, {
+            headers: { ...this._getWebHeaders() },
+            followRedirect: false,
+            maxRedirects: 0,
+          });
+        }
+      }
+    }
+
+    // Python's if res.url.path.startswith("/talk_tms_auth/service"):
+    const finalUrl2 = res.url || res.headers.location || '';
+    const urlPath2 = finalUrl2 ? new URL(finalUrl2).pathname : '';
+
+    if (urlPath2.startsWith('/talk_tms_auth/service')) {
+      const continueUrl = await this._solveTwoFactorAuth(client, res.body);
+
+      res = await client.get(continueUrl, {
+        headers: { ...this._getWebHeaders() },
+        followRedirect: false,
+        maxRedirects: 0,
+      });
+
+      // 2FA continue URL redirect handling as well
+      redirectCount = 0;
+      while (
+        res.statusCode >= 300 &&
+        res.statusCode < 400 &&
+        redirectCount < 10
+      ) {
+        const location = res.headers.location;
+        if (!location) break;
+
+        redirectCount++;
+
+        // Convert relative URL to absolute URL
+        let redirectUrl = location;
+        if (location.startsWith('/')) {
+          redirectUrl = `https://sharer.kakao.com${location}`;
+        } else if (!location.startsWith('http')) {
+          redirectUrl = `https://sharer.kakao.com/${location}`;
+        }
+
+        res = await client.get(redirectUrl, {
+          headers: { ...this._getWebHeaders() },
+          followRedirect: false,
+          maxRedirects: 0,
         });
       }
     }
 
-    // Handle 2FA
-    if (response.request.res.responseUrl?.includes('/talk_tms_auth/service')) {
-      console.log('카카오링크 전송: 추가인증 해결 중');
-      const continueUrl = await this.solveTwoFactorAuth(response.data);
-
-      response = await this.httpClient.get(continueUrl, {
-        headers: this.getWebHeaders(),
-        maxRedirects: 5,
-      });
-    }
-
-    // Parse server data
-    const serverDataMatch = response.data.match(
-      /window\.serverData = "([^"]+)"/
-    );
+    // Python's return json.loads(base64.urlsafe_b64decode(...))["data"]
+    const serverDataMatch = res.body.match(/window\.serverData = "([^"]+)"/);
     if (!serverDataMatch) {
-      throw new KakaoLinkException('서버 데이터를 찾을 수 없습니다');
+      throw new KakaoLinkException('Server data not found');
     }
 
-    const serverData = Buffer.from(
-      serverDataMatch[1] + '====',
-      'base64url'
-    ).toString('utf8');
-    return JSON.parse(serverData).data;
+    const base64Data = serverDataMatch[1].trim() + '====';
+    const decodedData = Buffer.from(base64Data, 'base64url').toString('utf-8');
+    const parsedData = JSON.parse(decodedData);
+    return parsedData['data'];
   }
 
+  // Identical to Python's init
   async init(): Promise<void> {
-    this.cookies = await this.cookieStorage.load();
-    await this.login();
+    this._cookies = await this._cookieStorage.load();
+
+    const client = this._createHttpClient();
+    await this._login(client);
   }
 
-  private async login(): Promise<void> {
-    const authorization = await this.authorizationProvider.getAuthorization();
-    this.cookies = {};
-    this.cookieStorage.clear();
+  // Identical to Python's _login
+  private async _login(client: Got): Promise<void> {
+    const authorization = await this._authorizationProvider.getAuthorization();
+    this._cookies = {};
+    this._cookieStorage.clear();
+    // client.cookies.clear(); // got's cookieJar is automatically managed
 
-    let authorized = await this.checkAuthorized();
-    if (authorized) return;
-
-    const tgtToken = await this.getTgtToken(authorization);
-    await this.submitTgtToken(tgtToken);
-
-    authorized = await this.checkAuthorized();
-    if (!authorized) {
-      console.error(
-        '카카오링크 로그인: 알 수 없는 이유로 로그인이 되지 않았습니다'
-      );
+    const authorized = await this._checkAuthorized(client);
+    if (authorized) {
+      return;
     }
 
-    await this.cookieStorage.save(this.cookies);
+    const tgtToken = await this._getTgtToken(client, authorization);
+    await this._submitTgtToken(client, tgtToken);
+
+    const authorizedAfter = await this._checkAuthorized(client);
+    if (!authorizedAfter) {
+      console.error('Kakaolink Login: Unknown reason for login failure');
+    }
+
+    // self._cookies = dict(client.cookies) - extract cookies from got's cookieJar
+    // got's cookieJar is automatically managed, no need for separate storage
+    await this._cookieStorage.save(this._cookies);
   }
 
-  private async solveTwoFactorAuth(tfaHtml: string): Promise<string> {
+  // Identical to Python's _solve_two_factor_auth
+  private async _solveTwoFactorAuth(
+    client: Got,
+    tfaHtml: string
+  ): Promise<string> {
     try {
       const propsMatch = tfaHtml.match(
-        /<script id="__NEXT_DATA__" type="application\/json">([^<]+)<\/script>/
+        /<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s
       );
-      if (!propsMatch) throw new Error('Props not found');
+      if (!propsMatch) {
+        throw new Error('Props not found');
+      }
 
-      const props = JSON.parse(propsMatch[1]);
-      const context = props.props.pageProps.pageContext.context;
-      const commonContext = props.props.pageProps.pageContext.commonContext;
+      const props = JSON.parse(propsMatch[1].trim());
+      const context = props['props']['pageProps']['pageContext']['context'];
+      const commonContext =
+        props['props']['pageProps']['pageContext']['commonContext'];
 
-      const token = context.token;
-      const continueUrl = context.continueUrl;
-      const csrf = commonContext._csrf;
+      const token = context['token'];
+      const continueUrl = context['continueUrl'];
+      const csrf = commonContext['_csrf'];
 
-      await this.confirmToken(token);
+      await this._confirmToken(client, token);
 
-      const response = await this.httpClient.post(
+      const response = await client.post(
         'https://accounts.kakao.com/api/v2/talk_tms_auth/poll_from_service.json',
-        { _csrf: csrf, token: token },
-        { headers: this.getWebHeaders() }
+        {
+          headers: { ...this._getWebHeaders() },
+          json: {
+            _csrf: csrf,
+            token: token,
+          },
+        }
       );
 
-      const resJson = response.data;
-      if (resJson.status !== 0) {
-        console.error('카카오링크 추가인증: 알 수 없는 오류', resJson.status);
+      const resJson = JSON.parse(response.body);
+      const status = resJson['status'];
+
+      if (status !== 0) {
         throw new KakaoLink2FAException();
       }
 
       return continueUrl;
     } catch (error) {
-      console.error('카카오링크 추가인증: 추가인증 토큰 파싱 실패', error);
       throw new KakaoLink2FAException();
     }
   }
 
-  private async confirmToken(twoFactorToken: string): Promise<void> {
-    const response = await this.httpClient.get(
-      'https://auth.kakao.com/fa/main.html',
-      {
-        params: {
-          os: 'android',
-          country_iso: 'KR',
-          lang: 'ko',
-          v: KAKAOTALK_VERSION,
-          os_version: ANDROID_SDK_VER,
-          page: 'additional_auth_with_token',
-          additional_auth_token: twoFactorToken,
-          close_on_completion: 'true',
-          talk_tms_auth_type: 'from_service',
-        },
-      }
-    );
+  // Identical to Python's _confirm_token
+  private async _confirmToken(
+    client: Got,
+    twoFactorToken: string
+  ): Promise<void> {
+    const response = await client.get('https://auth.kakao.com/fa/main.html', {
+      searchParams: {
+        os: 'android',
+        country_iso: 'KR',
+        lang: 'ko',
+        v: KAKAOTALK_VERSION,
+        os_version: ANDROID_SDK_VER,
+        page: 'additional_auth_with_token',
+        additional_auth_token: twoFactorToken,
+        close_on_completion: 'true',
+        talk_tms_auth_type: 'from_service',
+      },
+    });
 
     try {
-      const csrfMatch = response.data.match(
+      const csrfMatch = response.body.match(
         /<meta name="csrf-token" content="([^"]+)"/
       );
-      const csrf = csrfMatch[1];
+      if (!csrfMatch) {
+        throw new Error('CSRF token not found');
+      }
+      const csrf = csrfMatch[1].trim();
 
-      const optionsMatch = response.data.match(/var options =([^;]+)/);
-      const data = JSON.parse(
-        optionsMatch[1].replace(/new PageBuilder\(\)/, '').trim()
-      );
+      const optionsMatch = response.body.match(/var options = ({.*?});/s);
+      if (!optionsMatch) {
+        throw new Error('Options data not found');
+      }
+      const data = JSON.parse(optionsMatch[1].trim());
 
-      const confirmResponse = await this.httpClient.post(
+      const confirmResponse = await client.post(
         'https://auth.kakao.com/talk_tms_auth/confirm_token.json',
-        new URLSearchParams({
-          client_id: data.client_id,
-          lang: 'ko',
-          os: 'android',
-          v: KAKAOTALK_VERSION,
-          webview_v: '2',
-          token: data.additionalAuthToken,
-          talk_tms_auth_type: 'from_service',
-          authenticity_token: csrf,
-        }),
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        {
+          form: {
+            client_id: data['client_id'],
+            lang: 'ko',
+            os: 'android',
+            v: KAKAOTALK_VERSION,
+            webview_v: '2',
+            token: data['additionalAuthToken'],
+            talk_tms_auth_type: 'from_service',
+            authenticity_token: csrf,
+          },
+        }
       );
 
-      const resJson = confirmResponse.data;
-      if (resJson.status !== 0) {
-        console.error('카카오링크 추가인증: 알 수 없는 오류', resJson.status);
+      const resJson = JSON.parse(confirmResponse.body);
+      const status = resJson['status'];
+
+      if (status !== 0) {
         throw new KakaoLink2FAException();
       }
     } catch (error) {
-      console.error(
-        '카카오 링크 추가인증: csrf, client_id 데이터 파싱 실패',
-        error
-      );
       throw new KakaoLink2FAException();
     }
   }
 
-  private async checkAuthorized(): Promise<boolean> {
-    const response = await this.httpClient.get(
-      'https://e.kakao.com/api/v1/users/me',
-      {
-        headers: {
-          ...this.getWebHeaders(),
-          referer: 'https://e.kakao.com/',
-        },
-      }
-    );
+  // Identical to Python's _check_authorized
+  private async _checkAuthorized(client: Got): Promise<boolean> {
+    const response = await client.get('https://e.kakao.com/api/v1/users/me', {
+      headers: {
+        ...this._getWebHeaders(),
+        referer: 'https://e.kakao.com/',
+      },
+    });
 
-    const resJson = response.data;
-    const result = resJson.result || {};
-    return result.status === 'VALID';
+    const resJson = JSON.parse(response.body);
+    const result = resJson['result'] || {};
+
+    return result['status'] === 'VALID';
   }
 
-  private async submitTgtToken(tgtToken: string): Promise<void> {
-    const response = await this.httpClient.get('https://e.kakao.com', {
+  // Identical to Python's _submit_tgt_token
+  private async _submitTgtToken(client: Got, tgtToken: string): Promise<void> {
+    const response = await client.get('https://e.kakao.com', {
       headers: {
-        ...this.getWebHeaders(),
+        ...this._getWebHeaders(),
         'ka-tgt': tgtToken,
       },
     });
 
-    if (response.status < 200 || response.status >= 300) {
+    if (response.statusCode >= 400) {
       throw new KakaoLinkLoginException();
     }
   }
 
-  private async getTgtToken(token: string): Promise<string> {
-    const response = await this.httpClient.post(
+  // Identical to Python's _get_tgt_token
+  private async _getTgtToken(client: Got, token: string): Promise<string> {
+    const response = await client.post(
       'https://api-account.kakao.com/v1/auth/tgt',
-      new URLSearchParams({
-        key_type: 'talk_session_info',
-        key: token,
-        referer: 'talk',
-      }),
       {
-        headers: {
-          ...this.getAppHeaders(token),
-          'Content-Type': 'application/x-www-form-urlencoded',
+        headers: { ...this._getAppHeaders(token) },
+        form: {
+          key_type: 'talk_session_info',
+          key: token,
+          referer: 'talk',
         },
       }
     );
 
-    const resJson = response.data;
-    if (resJson.code !== 0) {
-      console.error(
-        '카카오링크 로그인: tgt 토큰 발급 중 오류가 발생했습니다',
-        resJson
-      );
+    const resJson = JSON.parse(response.body);
+
+    if (resJson['code'] !== 0) {
       throw new KakaoLinkLoginException();
     }
 
-    return resJson.token;
+    return resJson['token'];
   }
 
-  private getKa(origin: string): string {
+  // Identical to Python's _get_ka
+  private _getKa(origin: string): string {
     return `sdk/1.43.5 os/javascript sdk_type/javascript lang/ko-KR device/Linux armv7l origin/${encodeURIComponent(origin)}`;
   }
 
-  private getAppHeaders(token: string): Record<string, string> {
+  // Identical to Python's _get_app_headers
+  private _getAppHeaders(token: string): Record<string, string> {
     return {
       A: `android/${KAKAOTALK_VERSION}/ko`,
       C: uuid4(),
@@ -471,10 +600,57 @@ export class KakaoLink {
     };
   }
 
-  private getWebHeaders(): Record<string, string> {
+  // Identical to Python's _get_web_headers
+  private _getWebHeaders(): Record<string, string> {
     return {
       'User-Agent': `${ANDROID_WEBVIEW_UA} KAKAOTALK/${KAKAOTALK_VERSION} (INAPP)`,
       'X-Requested-With': 'com.kakao.talk',
     };
   }
+
+  // Same role as Python's httpx.AsyncClient(cookies=self._cookies)
+  private _createHttpClient(): Got {
+    const cookieJar = new CookieJar();
+
+    // Set existing cookies to cookieJar
+    Object.entries(this._cookies).forEach(([key, value]) => {
+      try {
+        cookieJar.setCookieSync(`${key}=${value}`, 'https://sharer.kakao.com');
+      } catch (error) {
+        // 쿠키 설정 실패 시 무시
+      }
+    });
+
+    return got.extend({
+      cookieJar: cookieJar,
+      followRedirect: false, // false because we handle redirects manually
+      maxRedirects: 0,
+      timeout: {
+        request: 30000,
+      },
+      throwHttpErrors: false,
+      // Don't set prefixUrl - only use absolute URLs
+      hooks: {
+        afterResponse: [
+          (response: any) => {
+            // Update cookies from response (same as Python's automatic cookie management)
+            const setCookies = response.headers['set-cookie'];
+            if (setCookies) {
+              setCookies.forEach((cookie: string) => {
+                const [nameValue] = cookie.split(';');
+                const [name, value] = nameValue.split('=');
+                if (name && value) {
+                  this._cookies[name.trim()] = value.trim();
+                }
+              });
+            }
+            return response;
+          },
+        ],
+      },
+    });
+  }
 }
+
+// Alias for compatibility
+export const IrisLink = KakaoLink;
