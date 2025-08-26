@@ -13,8 +13,8 @@ node-iris는 Python으로 작성된 [irispy-client](https://github.com/dolidolih
 예시:
 
 - `node-iris 1.6.0`: irispy-client 0.1.6 포팅
-- `node-iris 1.6.1`: 자체 버그 수정
-- `node-iris 1.6.2`: 자체 기능 개선
+- `node-iris 1.6.1`: 자체 버그 수정 등
+- `node-iris 1.6.2`: 자체 기능 개선 등
 
 ## 설치
 
