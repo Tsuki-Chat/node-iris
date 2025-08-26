@@ -1,13 +1,13 @@
 # node-iris
 
-Python irispy-client 모듈의 TypeScript 포팅 버전입니다. 카카오톡 봇 개발을 위한 완전한 기능을 제공합니다.
+Python [irispy-client](https://github.com/dolidolih/irispy-client) 모듈의 TypeScript 포팅 버전입니다. 카카오톡 봇 개발을 위한 기능을 제공합니다.
 
 ## 설치
 
 ```bash
-npm install node-iris
+npm install @racla-dev/node-iris
 # 또는
-pnpm install node-iris
+pnpm install @racla-dev/node-iris
 ```
 
 ## 설정
@@ -30,7 +30,7 @@ BANNED_USERS=123456789,987654321
 ### 봇 생성 및 실행
 
 ```typescript
-import { Bot, ChatContext } from 'node-iris';
+import { Bot, ChatContext } from '@racla-dev/node-iris';
 
 const bot = new Bot(process.env.IRIS_URL, { maxWorkers: 4 });
 
@@ -57,7 +57,7 @@ await bot.run();
 ### 데코레이터 사용
 
 ```typescript
-import { decorators } from 'node-iris';
+import { decorators } from '@racla-dev/node-iris';
 
 // 파라미터가 있는 경우에만 실행
 const echoHandler = decorators.hasParam(async (context: ChatContext) => {
@@ -91,7 +91,7 @@ import {
   KakaoLinkReceiverNotFoundException,
   KakaoLinkLoginException,
   KakaoLinkSendException,
-} from 'node-iris';
+} from '@racla-dev/node-iris';
 
 const link = new IrisLink(process.env.IRIS_URL);
 
@@ -209,4 +209,9 @@ new IrisLink(irisUrl: string)
 
 ## 라이선스
 
-UNLICENSE
+[MIT](https://github.com/RACLA-DEV/node-iris/LICENSE)
+
+## 참조
+
+Irispy2 and Kakaolink by [@ye-seola](https://github.com/ye-seola)  
+irispy-client by [@dolidolih](https://github.com/dolidolih)

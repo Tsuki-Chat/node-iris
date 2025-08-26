@@ -1,5 +1,6 @@
 /**
- * Example usage of node-iris
+ * Example usage of Kakaotalk Bot
+ * Based on Python iris.Bot reference
  */
 
 import { Bot, ChatContext, decorators } from '../src';
