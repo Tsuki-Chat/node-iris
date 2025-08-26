@@ -109,7 +109,7 @@ export function isNotBanned(
  * Helper function to check if user is banned
  * This is a placeholder - implement based on your ban system
  */
-async function checkIfUserIsBanned(userId: number): Promise<boolean> {
+async function checkIfUserIsBanned(userId: string): Promise<boolean> {
   // Get banned users from environment variable or configuration
   const { Config } = await import('../utils/config');
   const config = Config.getInstance();

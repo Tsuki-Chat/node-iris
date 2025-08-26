@@ -2,7 +2,7 @@
  * TypeScript port of iris.bot._internal.iris
  */
 
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { IIrisAPI } from '../types/interfaces';
 
 export interface IrisRequest {
@@ -13,12 +13,12 @@ export interface IrisRequest {
 
 export class IrisAPI implements IIrisAPI {
   private httpClient: AxiosInstance;
-  private baseUrl: string;
+  private irisEndpoint: string;
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+  constructor(irisEndpoint: string) {
+    this.irisEndpoint = irisEndpoint;
     this.httpClient = axios.create({
-      baseURL: baseUrl,
+      baseURL: irisEndpoint,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -26,73 +26,115 @@ export class IrisAPI implements IIrisAPI {
     });
   }
 
-  async query(sql: string, params: any[] = []): Promise<any[]> {
+  private parse(response: AxiosResponse): any {
     try {
-      const response = await this.httpClient.post('/query', {
-        sql,
-        params,
+      const data = response.data;
+
+      if (response.status < 200 || response.status >= 300) {
+        console.error(`Iris 오류: ${response.status}`);
+        throw new Error(`Iris 오류: ${data?.message || '알 수 없는 오류'}`);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Iris 오류')) {
+        throw error;
+      }
+      throw new Error(`Iris 응답 JSON 파싱 오류: ${response.data}`);
+    }
+  }
+
+  async reply(roomId: string | number, message: string): Promise<any> {
+    try {
+      const response = await this.httpClient.post('/reply', {
+        type: 'text',
+        room: String(roomId),
+        data: String(message),
       });
 
-      return response.data || [];
+      return this.parse(response);
+    } catch (error) {
+      console.error('Reply failed:', error);
+      throw error;
+    }
+  }
+
+  async replyMedia(roomId: string | number, files: Buffer[]): Promise<any> {
+    try {
+      // Convert buffers to base64 for transmission
+      const data = files.map((buffer) => buffer.toString('base64'));
+
+      if (data.length === 0) {
+        console.error(
+          '이미지 전송이 모두 실패하였습니다. 이미지 전송 요청 부분을 확인해주세요.'
+        );
+        return;
+      }
+
+      const response = await this.httpClient.post('/reply', {
+        type: 'image_multiple',
+        room: String(roomId),
+        data: data,
+      });
+
+      return this.parse(response);
+    } catch (error) {
+      console.error('Reply media failed:', error);
+      throw error;
+    }
+  }
+
+  async decrypt(
+    enc: number,
+    b64Ciphertext: string,
+    userId: string | number
+  ): Promise<string | null> {
+    try {
+      const response = await this.httpClient.post('/decrypt', {
+        enc,
+        b64_ciphertext: b64Ciphertext,
+        user_id: String(userId), // userId도 문자열로 변환
+      });
+
+      const result = this.parse(response);
+      return result?.plain_text || null;
+    } catch (error) {
+      console.error('Decrypt failed:', error);
+      throw error;
+    }
+  }
+
+  async query(query: string, bind: any[] = []): Promise<any[]> {
+    try {
+      const response = await this.httpClient.post('/query', {
+        query,
+        bind,
+      });
+
+      const result = this.parse(response);
+      return result?.data || [];
     } catch (error) {
       console.error('Query failed:', error);
       throw error;
     }
   }
 
-  async sendMessage(roomId: number, message: string): Promise<void> {
+  async getInfo(): Promise<any> {
     try {
-      await this.httpClient.post('/send', {
-        room_id: roomId,
-        message,
-      });
-    } catch (error) {
-      console.error('Send message failed:', error);
-      throw error;
-    }
-  }
-
-  async sendMedia(roomId: number, files: Buffer[]): Promise<void> {
-    try {
-      // Convert buffers to base64 for transmission
-      const fileData = files.map((buffer) => buffer.toString('base64'));
-
-      await this.httpClient.post('/send-media', {
-        room_id: roomId,
-        files: fileData,
-      });
-    } catch (error) {
-      console.error('Send media failed:', error);
-      throw error;
-    }
-  }
-
-  async getInfo(): Promise<{ bot_id: number; [key: string]: any }> {
-    try {
-      const response = await this.httpClient.get('/info');
-      return response.data;
+      const response = await this.httpClient.get('/config');
+      return this.parse(response);
     } catch (error) {
       console.error('Get info failed:', error);
       throw error;
     }
   }
 
-  async getRoomInfo(roomId: number): Promise<any> {
+  async getAot(): Promise<any> {
     try {
-      const response = await this.httpClient.get(`/room/${roomId}`);
-      return response.data;
+      const response = await this.httpClient.get('/aot');
+      return this.parse(response);
     } catch (error) {
-      console.error('Get room info failed:', error);
-      throw error;
-    }
-  }
-
-  async getUserInfo(userId: number): Promise<any> {
-    try {
-      const response = await this.httpClient.get(`/user/${userId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Get user info failed:', error);
+      console.error('Get AOT failed:', error);
       throw error;
     }
   }

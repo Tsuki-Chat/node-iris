@@ -15,7 +15,7 @@ export interface IrisRequest {
 }
 
 export class Message {
-  public id: number;
+  public id: string;
   public type: number;
   public msg: string;
   public attachment: any;
@@ -26,13 +26,13 @@ export class Message {
   public image?: ChatImage;
 
   constructor(
-    id: number,
+    id: number | string,
     type: number,
     msg: string,
     attachment: any,
     v: Record<string, any>
   ) {
-    this.id = id;
+    this.id = String(id); // ID를 항상 문자열로 변환
     this.type = type;
     this.msg = msg;
     this.v = v;
@@ -85,13 +85,13 @@ export class Message {
 }
 
 export class Room {
-  public id: number;
+  public id: string;
   public name: string;
   private _api: IIrisAPI;
   private _type?: string | null;
 
-  constructor(id: number, name: string, api: IIrisAPI) {
-    this.id = id;
+  constructor(id: number | string, name: string, api: IIrisAPI) {
+    this.id = String(id); // ID를 항상 문자열로 변환
     this.name = name;
     this._api = api;
   }
@@ -126,15 +126,15 @@ export class Room {
 }
 
 export class Avatar {
-  private _id: number;
-  private _chatId: number;
+  private _id: string;
+  private _chatId: string;
   private _api: IIrisAPI;
   private _url?: string | null;
   private _img?: Buffer | null;
 
-  constructor(id: number, chatId: number, api: IIrisAPI) {
-    this._id = id;
-    this._chatId = chatId;
+  constructor(id: number | string, chatId: number | string, api: IIrisAPI) {
+    this._id = String(id);
+    this._chatId = String(chatId);
     this._api = api;
   }
 
@@ -146,7 +146,7 @@ export class Avatar {
     try {
       let results: any[];
 
-      if (this._id < 10000000000) {
+      if (BigInt(this._id) < 10000000000n) {
         results = await this._api.query(
           'SELECT T2.o_profile_image_url FROM chat_rooms AS T1 JOIN db2.open_profile AS T2 ON T1.link_id = T2.link_id WHERE T1.id = ?',
           [this._chatId]
@@ -200,26 +200,26 @@ export class Avatar {
 }
 
 export class User {
-  public id: number;
+  public id: string;
   public avatar: Avatar;
-  private _chatId: number;
+  private _chatId: string;
   private _api: IIrisAPI;
   private _name?: string | null;
-  private _botId?: number;
+  private _botId?: string;
   private _type?: string | null;
 
   constructor(
-    id: number,
-    chatId: number,
+    id: number | string,
+    chatId: number | string,
     api: IIrisAPI,
     name?: string,
-    botId?: number
+    botId?: number | string
   ) {
-    this.id = id;
-    this._chatId = chatId;
+    this.id = String(id);
+    this._chatId = String(chatId);
     this._api = api;
     this._name = name;
-    this._botId = botId;
+    this._botId = botId ? String(botId) : undefined;
     this.avatar = new Avatar(id, chatId, api);
   }
 
@@ -237,7 +237,7 @@ export class User {
           [this._chatId]
         );
         this._name = results[0]?.nickname || null;
-      } else if (this.id < 10000000000) {
+      } else if (BigInt(this.id) < 10000000000n) {
         results = await this._api.query(
           'SELECT name FROM db2.friends WHERE id = ?',
           [this.id]
@@ -405,14 +405,14 @@ export class ChatContext {
     this.api = api;
   }
 
-  async reply(message: string, roomId?: number): Promise<void> {
+  async reply(message: string, roomId?: string | number): Promise<void> {
     const targetRoomId = roomId || this.room.id;
-    await this.api.sendMessage(targetRoomId, message);
+    await this.api.reply(targetRoomId, message);
   }
 
-  async replyMedia(files: Buffer[], roomId?: number): Promise<void> {
+  async replyMedia(files: Buffer[], roomId?: string | number): Promise<void> {
     const targetRoomId = roomId || this.room.id;
-    await this.api.sendMedia(targetRoomId, files);
+    await this.api.replyMedia(targetRoomId, files);
   }
 
   async getSource(): Promise<ChatContext | null> {
@@ -437,13 +437,13 @@ export class ChatContext {
       const source = sourceMessage[0];
       const sourceRoom = new Room(this.room.id, this.room.name, this.api);
       const sourceUser = new User(
-        parseInt(source.user_id),
+        source.user_id, // parseInt 제거
         this.room.id,
         this.api,
         source.sender_name
       );
       const sourceMsg = new Message(
-        parseInt(source.id),
+        source.id, // parseInt 제거
         parseInt(source.type),
         source.message,
         source.attachment,
@@ -477,13 +477,13 @@ export class ChatContext {
       const next = nextMessages[n - 1] || nextMessages[nextMessages.length - 1];
       const nextRoom = new Room(this.room.id, this.room.name, this.api);
       const nextUser = new User(
-        parseInt(next.user_id),
+        next.user_id, // parseInt 제거
         this.room.id,
         this.api,
         next.sender_name
       );
       const nextMsg = new Message(
-        parseInt(next.id),
+        next.id, // parseInt 제거
         parseInt(next.type),
         next.message,
         next.attachment,
@@ -511,13 +511,13 @@ export class ChatContext {
       const prev = prevMessages[n - 1] || prevMessages[prevMessages.length - 1];
       const prevRoom = new Room(this.room.id, this.room.name, this.api);
       const prevUser = new User(
-        parseInt(prev.user_id),
+        prev.user_id, // parseInt 제거
         this.room.id,
         this.api,
         prev.sender_name
       );
       const prevMsg = new Message(
-        parseInt(prev.id),
+        prev.id, // parseInt 제거
         parseInt(prev.type),
         prev.message,
         prev.attachment,

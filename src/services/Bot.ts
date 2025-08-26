@@ -22,7 +22,7 @@ export class Bot {
   private irisUrl: string;
   private irisWsEndpoint: string;
   public api: IrisAPI;
-  private botId?: number;
+  private botId?: string;
   private ws?: WebSocket;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -139,7 +139,7 @@ export class Bot {
 
         try {
           const info = await this.api.getInfo();
-          this.botId = info.bot_id;
+          this.botId = String(info.bot_id); // String으로 변환
           resolve();
         } catch (error) {
           reject(error);
@@ -219,10 +219,10 @@ export class Bot {
       // Ignore JSON parse errors
     }
 
-    const room = new Room(parseInt(req.raw.chat_id), req.room, this.api);
+    const room = new Room(req.raw.chat_id, req.room, this.api);
 
     const sender = new User(
-      parseInt(req.raw.user_id),
+      req.raw.user_id,
       room.id,
       this.api,
       req.sender,
@@ -230,7 +230,7 @@ export class Bot {
     );
 
     const message = new Message(
-      parseInt(req.raw.id),
+      req.raw.id,
       parseInt(req.raw.type),
       req.raw.message || '',
       req.raw.attachment || '',

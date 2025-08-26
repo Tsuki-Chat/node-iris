@@ -10,7 +10,7 @@ config();
 export interface IrisConfig {
   irisUrl: string;
   maxWorkers?: number;
-  bannedUsers?: number[];
+  bannedUsers?: string[];
   // Add other configuration options as needed
 }
 
@@ -41,7 +41,7 @@ export class Config {
       : undefined;
 
     const bannedUsers = process.env.BANNED_USERS
-      ? process.env.BANNED_USERS.split(',').map((id) => parseInt(id.trim()))
+      ? process.env.BANNED_USERS.split(',').map((id) => id.trim())
       : [];
 
     return {
@@ -72,7 +72,7 @@ export class Config {
     return this.config.maxWorkers;
   }
 
-  public get bannedUsers(): number[] {
+  public get bannedUsers(): string[] {
     return this.config.bannedUsers || [];
   }
 }

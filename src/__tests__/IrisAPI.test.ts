@@ -59,7 +59,7 @@ describe('IrisAPI', () => {
 
       const result = await api.getInfo();
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/info');
+      expect(mockedAxios.get).toHaveBeenCalledWith('/config');
       expect(result).toEqual(mockResponse.data);
     });
 
@@ -71,80 +71,15 @@ describe('IrisAPI', () => {
     });
   });
 
-  describe('sendMessage', () => {
-    test('should send message successfully', async () => {
-      const mockResponse = {
-        data: { success: true },
-      };
-
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const roomId = 123;
-      const message = '안녕하세요!';
-
-      await api.sendMessage(roomId, message);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith('/send', {
-        room_id: roomId,
-        message: message,
-      });
-    });
-
-    test('should handle send message errors', async () => {
-      const mockError = new Error('Send failed');
-      mockedAxios.post.mockRejectedValue(mockError);
-
-      const roomId = 123;
-      const message = '테스트 메시지';
-
-      await expect(api.sendMessage(roomId, message)).rejects.toThrow(
-        'Send failed'
-      );
-    });
-  });
-
-  describe('sendMedia', () => {
-    test('should send media files successfully', async () => {
-      const mockResponse = {
-        data: { success: true },
-      };
-
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const roomId = 123;
-      const files = [
-        Buffer.from('fake image data'),
-        Buffer.from('fake video data'),
-      ];
-
-      await api.sendMedia(roomId, files);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith('/send-media', {
-        room_id: roomId,
-        files: files.map((f) => f.toString('base64')),
-      });
-    });
-
-    test('should handle send media errors', async () => {
-      const mockError = new Error('Media send failed');
-      mockedAxios.post.mockRejectedValue(mockError);
-
-      const roomId = 123;
-      const files = [Buffer.from('fake data')];
-
-      await expect(api.sendMedia(roomId, files)).rejects.toThrow(
-        'Media send failed'
-      );
-    });
-  });
-
   describe('query', () => {
     test('should execute SQL query successfully', async () => {
       const mockResponse = {
-        data: [
-          { id: 1, name: 'test1' },
-          { id: 2, name: 'test2' },
-        ],
+        data: {
+          data: [
+            { id: 1, name: 'test1' },
+            { id: 2, name: 'test2' },
+          ],
+        },
       };
 
       mockedAxios.post.mockResolvedValue(mockResponse);
@@ -155,15 +90,20 @@ describe('IrisAPI', () => {
       const result = await api.query(sql, params);
 
       expect(mockedAxios.post).toHaveBeenCalledWith('/query', {
-        sql,
-        params,
+        query: sql,
+        bind: params,
       });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual([
+        { id: 1, name: 'test1' },
+        { id: 2, name: 'test2' },
+      ]);
     });
 
     test('should handle query without parameters', async () => {
       const mockResponse = {
-        data: [{ count: 5 }],
+        data: {
+          data: [{ count: 5 }],
+        },
       };
 
       mockedAxios.post.mockResolvedValue(mockResponse);
@@ -173,10 +113,10 @@ describe('IrisAPI', () => {
       const result = await api.query(sql);
 
       expect(mockedAxios.post).toHaveBeenCalledWith('/query', {
-        sql,
-        params: [],
+        query: sql,
+        bind: [],
       });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual([{ count: 5 }]);
     });
 
     test('should handle query errors', async () => {
@@ -189,63 +129,111 @@ describe('IrisAPI', () => {
     });
   });
 
-  describe('getRoomInfo', () => {
-    test('should get room information successfully', async () => {
+  describe('reply', () => {
+    test('should send reply successfully', async () => {
       const mockResponse = {
-        data: {
-          id: 123,
-          name: '테스트 채팅방',
-          member_count: 5,
-        },
+        data: { success: true },
       };
 
-      mockedAxios.get.mockResolvedValue(mockResponse);
+      mockedAxios.post.mockResolvedValue(mockResponse);
 
       const roomId = 123;
+      const message = '답장 테스트';
 
-      const result = await api.getRoomInfo(roomId);
+      const result = await api.reply(roomId, message);
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/room/123');
+      expect(mockedAxios.post).toHaveBeenCalledWith('/reply', {
+        type: 'text',
+        room: String(roomId),
+        data: String(message),
+      });
       expect(result).toEqual(mockResponse.data);
     });
 
-    test('should handle room info errors', async () => {
-      const mockError = new Error('Room not found');
-      mockedAxios.get.mockRejectedValue(mockError);
+    test('should handle reply errors', async () => {
+      const mockError = new Error('Reply failed');
+      mockedAxios.post.mockRejectedValue(mockError);
 
-      const roomId = 999;
-
-      await expect(api.getRoomInfo(roomId)).rejects.toThrow('Room not found');
+      await expect(api.reply(123, 'test')).rejects.toThrow('Reply failed');
     });
   });
 
-  describe('getUserInfo', () => {
-    test('should get user information successfully', async () => {
+  describe('replyMedia', () => {
+    test('should send media reply successfully', async () => {
       const mockResponse = {
-        data: {
-          id: 456,
-          name: '테스트 유저',
-          avatar_url: 'http://example.com/avatar.jpg',
-        },
+        data: { success: true },
+      };
+
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const roomId = 123;
+      const files = [Buffer.from('test image')];
+
+      const result = await api.replyMedia(roomId, files);
+
+      expect(mockedAxios.post).toHaveBeenCalledWith('/reply', {
+        type: 'image_multiple',
+        room: String(roomId),
+        data: files.map((f) => f.toString('base64')),
+      });
+      expect(result).toEqual(mockResponse.data);
+    });
+
+    test('should handle empty files array', async () => {
+      const result = await api.replyMedia(123, []);
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('decrypt', () => {
+    test('should decrypt message successfully', async () => {
+      const mockResponse = {
+        data: { plain_text: 'decrypted message' },
+      };
+
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const result = await api.decrypt(1, 'encrypted_data', 12345);
+
+      expect(mockedAxios.post).toHaveBeenCalledWith('/decrypt', {
+        enc: 1,
+        b64_ciphertext: 'encrypted_data',
+        user_id: '12345',
+      });
+      expect(result).toBe('decrypted message');
+    });
+
+    test('should return null when plain_text is missing', async () => {
+      const mockResponse = {
+        data: {},
+      };
+
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const result = await api.decrypt(1, 'encrypted_data', 12345);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getAot', () => {
+    test('should get AOT data successfully', async () => {
+      const mockResponse = {
+        data: { aot_data: 'test' },
       };
 
       mockedAxios.get.mockResolvedValue(mockResponse);
 
-      const userId = 456;
+      const result = await api.getAot();
 
-      const result = await api.getUserInfo(userId);
-
-      expect(mockedAxios.get).toHaveBeenCalledWith('/user/456');
+      expect(mockedAxios.get).toHaveBeenCalledWith('/aot');
       expect(result).toEqual(mockResponse.data);
     });
 
-    test('should handle user info errors', async () => {
-      const mockError = new Error('User not found');
+    test('should handle AOT errors', async () => {
+      const mockError = new Error('AOT failed');
       mockedAxios.get.mockRejectedValue(mockError);
 
-      const userId = 999;
-
-      await expect(api.getUserInfo(userId)).rejects.toThrow('User not found');
+      await expect(api.getAot()).rejects.toThrow('AOT failed');
     });
   });
 

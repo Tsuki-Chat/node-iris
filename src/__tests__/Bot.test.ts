@@ -24,7 +24,7 @@ jest.mock('../services/IrisAPI', () => {
   return {
     IrisAPI: jest.fn().mockImplementation(() => ({
       getInfo: jest.fn().mockResolvedValue({ bot_id: 123 }),
-      sendMessage: jest.fn().mockResolvedValue({}),
+      reply: jest.fn().mockResolvedValue({}),
     })),
   };
 });
@@ -114,7 +114,7 @@ describe('Bot', () => {
     test('should have IrisAPI instance', () => {
       expect(bot.api).toBeDefined();
       expect(typeof bot.api.getInfo).toBe('function');
-      expect(typeof bot.api.sendMessage).toBe('function');
+      expect(typeof bot.api.reply).toBe('function');
     });
   });
 
