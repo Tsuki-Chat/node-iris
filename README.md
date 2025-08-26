@@ -1,6 +1,6 @@
 # node-iris
 
-Python [irispy-client](https://github.com/dolidolih/irispy-client) 모듈의 TypeScript 포팅 버전입니다. 카카오톡 봇 개발을 위한 기능을 제공합니다.
+Python [dolidolih/irispy-client](https://github.com/dolidolih/irispy-client) 모듈의 TypeScript 포팅 버전입니다. 카카오톡 봇 개발을 위한 기능을 제공합니다.
 
 ## 설치
 
