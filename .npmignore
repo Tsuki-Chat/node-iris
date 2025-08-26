@@ -1,0 +1,37 @@
+# Source files
+src/
+tsconfig.json
+jest.config.js
+
+# Development files
+.env
+.env.example
+*.log
+coverage/
+
+# Tests
+**/__tests__/
+**/*.test.ts
+**/*.spec.ts
+
+# Built test files
+dist/**/__tests__/
+dist/**/*.test.js
+dist/**/*.test.d.ts
+dist/**/*.test.js.map
+dist/**/*.test.d.ts.map
+
+# Development dependencies
+node_modules/
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

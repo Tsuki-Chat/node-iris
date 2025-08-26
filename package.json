@@ -1,0 +1,68 @@
+{
+  "name": "@racla-dev/node-iris",
+  "version": "0.1.6",
+  "description": "TypeScript port of Python irispy-client module for KakaoTalk bot development",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "prepublishOnly": "npm run clean && npm run build && npm test",
+    "publish:public": "npm publish --access public"
+  },
+  "keywords": [
+    "typescript",
+    "nodejs",
+    "iris",
+    "kakaotalk",
+    "chatbot",
+    "bot",
+    "kakaolink",
+    "chat",
+    "messaging"
+  ],
+  "author": "RACLA-DEV",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RACLA-DEV/node-iris.git"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "dist/**/*.d.ts.map",
+    "!dist/**/__tests__/",
+    "!dist/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.18.0",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
+    "eslint": "^9.34.0",
+    "jest": "^30.0.5",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@types/lodash": "^4.17.20",
+    "@types/ws": "^8.5.12",
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.1",
+    "lodash": "^4.17.21",
+    "sharp": "^0.34.3",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.0"
+  }
+}
