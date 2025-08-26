@@ -1,6 +1,20 @@
 # node-iris
 
-Python [dolidolih/irispy-client](https://github.com/dolidolih/irispy-client) 모듈의 TypeScript 포팅 버전입니다. 카카오톡 봇 개발을 위한 기능을 제공합니다.
+node-iris는 Python으로 작성된 [irispy-client](https://github.com/dolidolih/irispy-client) 모듈의 Node.js(TypeScript) 포팅 버전입니다. 카카오톡 봇 개발을 위한 기능을 제공합니다.
+
+## 버전 정책
+
+이 패키지는 [irispy-client](https://github.com/dolidolih/irispy-client)의 버전을 기준으로 합니다:
+
+- **irispy-client 0.1.6** → **node-iris 1.6.x**
+- **메이저.마이너**: 원본 Python 버전을 따름 (0.1.6 → 1.6)
+- **패치**: 자체적인 버그 수정 및 개선사항 (1.6.0, 1.6.1, 1.6.2, ...)
+
+예시:
+
+- `node-iris 1.6.0`: irispy-client 0.1.6 포팅
+- `node-iris 1.6.1`: 자체 버그 수정
+- `node-iris 1.6.2`: 자체 기능 개선
 
 ## 설치
 
@@ -213,5 +227,11 @@ new IrisLink(irisUrl: string)
 
 ## 참조
 
-- Irispy2 and Kakaolink by [@ye-seola](https://github.com/ye-seola)
-- irispy-client by [@dolidolih](https://github.com/dolidolih)
+- [IrisPy2](https://github.com/ye-seola/IrisPy2) and [kakaolink-py](https://github.com/ye-seola/kakaolink-py) by [@ye-seola](https://github.com/ye-seola)
+- [irispy-client](https://github.com/dolidolih/irispy-client) by [@dolidolih](https://github.com/dolidolih)
+
+## 면책 조항
+
+이 프로젝트는 오직 교육 및 연구 목적으로 제공됩니다. 개발자들은 이 소프트웨어의 오용이나 이로 인한 손상에 대해 책임지지 않습니다. 본인의 책임 하에 사용하시고, 관련 법률 및 서비스 약관을 준수하시기 바랍니다.
+
+This project is provided for educational and research purposes only. The developers are not responsible for any misuse or damage caused by this software. Use it at your own risk and ensure you comply with all applicable laws and terms of service.
