@@ -5,6 +5,7 @@
 // Main classes
 export { Bot } from './services/Bot';
 export { IrisAPI } from './services/IrisAPI';
+export { Logger, defaultLogger } from './utils/logger';
 export {
   KakaoLink,
   KakaoLinkException,
@@ -39,11 +40,60 @@ export {
 
 // Decorators
 export {
+  // Method decorators
+  HasParam,
+  IsReply,
+  IsAdmin,
+  IsNotBanned,
+  HasRole,
+  BotCommand,
+  Prefix,
+  MethodPrefix,
+  Throttle,
+  OnMessage,
+  // Message type decorators
+  OnNormalMessage,
+  OnPhotoMessage,
+  OnVideoMessage,
+  OnAudioMessage,
+  OnEmoticonMessage,
+  OnMapMessage,
+  OnProfileMessage,
+  OnFileMessage,
+  OnReplyMessage,
+  OnMultiPhotoMessage,
+  OnNewMultiPhotoMessage,
+  OnImageMessage,
+  OnFeedMessage,
+  // Feed type decorators
+  OnInviteUserFeed,
+  OnLeaveUserFeed,
+  OnOpenChatJoinUserFeed,
+  OnOpenChatKickedUserFeed,
+  OnPromoteManagerFeed,
+  OnDemoteManagerFeed,
+  OnDeleteMessageFeed,
+  OnHandOverHostFeed,
+  OnHideMessageFeed,
+  // Controller class decorators
+  MessageController,
+  NewMemberController,
+  DeleteMemberController,
+  FeedController,
+  ErrorController,
+  UnknownController,
+  ChatController,
+  // Function decorators (backward compatibility)
   hasParam,
   isReply,
   isAdmin,
   isNotBanned,
   decorators,
+  // Utility functions
+  getRegisteredCommands,
+  getRegisteredControllers,
+  clearUserThrottle,
+  clearAllThrottle,
 } from './decorators';
 
 // Utils

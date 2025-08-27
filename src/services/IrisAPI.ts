@@ -4,6 +4,7 @@
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { IIrisAPI } from '../types/interfaces';
+import { Logger } from '../utils/logger';
 
 export interface IrisRequest {
   raw: Record<string, any>;
@@ -14,6 +15,7 @@ export interface IrisRequest {
 export class IrisAPI implements IIrisAPI {
   private httpClient: AxiosInstance;
   private irisEndpoint: string;
+  private logger: Logger = new Logger('IrisAPI');
 
   constructor(irisEndpoint: string) {
     this.irisEndpoint = irisEndpoint;
@@ -31,7 +33,7 @@ export class IrisAPI implements IIrisAPI {
       const data = response.data;
 
       if (response.status < 200 || response.status >= 300) {
-        console.error(`Iris error: ${response.status}`);
+        this.logger.error(`Iris error: ${response.status}`);
         throw new Error(`Iris error: ${data?.message || 'Unknown error'}`);
       }
 
@@ -54,7 +56,7 @@ export class IrisAPI implements IIrisAPI {
 
       return this.parse(response);
     } catch (error) {
-      console.error('Reply failed:', error);
+      this.logger.error('Reply failed:', error);
       throw error;
     }
   }
@@ -65,7 +67,7 @@ export class IrisAPI implements IIrisAPI {
       const data = files.map((buffer) => buffer.toString('base64'));
 
       if (data.length === 0) {
-        console.error(
+        this.logger.error(
           'Reply media failed. please check the image sending request part.'
         );
         return;
@@ -79,7 +81,7 @@ export class IrisAPI implements IIrisAPI {
 
       return this.parse(response);
     } catch (error) {
-      console.error('Reply media failed:', error);
+      this.logger.error('Reply media failed:', error);
       throw error;
     }
   }
@@ -99,7 +101,7 @@ export class IrisAPI implements IIrisAPI {
       const result = this.parse(response);
       return result?.plain_text || null;
     } catch (error) {
-      console.error('Decrypt failed:', error);
+      this.logger.error('Decrypt failed:', error);
       throw error;
     }
   }
@@ -114,7 +116,7 @@ export class IrisAPI implements IIrisAPI {
       const result = this.parse(response);
       return result?.data || [];
     } catch (error) {
-      console.error('Query failed:', error);
+      this.logger.error('Query failed:', error);
       throw error;
     }
   }
@@ -124,7 +126,7 @@ export class IrisAPI implements IIrisAPI {
       const response = await this.httpClient.get('/config');
       return this.parse(response);
     } catch (error) {
-      console.error('Get info failed:', error);
+      this.logger.error('Get info failed:', error);
       throw error;
     }
   }
@@ -134,7 +136,7 @@ export class IrisAPI implements IIrisAPI {
       const response = await this.httpClient.get('/aot');
       return this.parse(response);
     } catch (error) {
-      console.error('Get AOT failed:', error);
+      this.logger.error('Get AOT failed:', error);
       throw error;
     }
   }

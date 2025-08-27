@@ -4,10 +4,12 @@
 
 import { EventEmitter as NodeEventEmitter } from 'events';
 import { ErrorContext } from '../types/models';
+import { Logger } from '../utils/logger';
 
 export type EventHandler = (...args: any[]) => void | Promise<void>;
 
 export class EventEmitter {
+  private logger: Logger = new Logger('EventEmitter');
   private emitter: NodeEventEmitter;
   private maxWorkers?: number;
 
@@ -66,7 +68,7 @@ export class EventEmitter {
       if (event !== 'error') {
         this.emitter.emit('error', errorContext);
       } else {
-        console.error('Error in error handler:', error);
+        this.logger.error('Error in error handler:', error);
       }
     }
   }

@@ -6,6 +6,7 @@
 import got, { Got } from 'got';
 import { CookieJar } from 'tough-cookie';
 import { v4 as uuid4 } from 'uuid';
+import { Logger } from '../utils/logger';
 
 const KAKAOTALK_VERSION = '25.2.1';
 const ANDROID_SDK_VER = 33;
@@ -83,6 +84,7 @@ class KakaoLinkAuthorizationProvider {
 
 // Main KakaoLink class - equivalent to Python's KakaoLink
 export class KakaoLink {
+  private logger: Logger = new Logger('KakaoLink');
   private defaultAppKey?: string;
   private defaultOrigin?: string;
   private _cookies: Record<string, string> = {};
@@ -146,7 +148,7 @@ export class KakaoLink {
         csrf = pickerData['csrfToken'];
         shortKey = pickerData['shortKey'];
       } catch (error) {
-        console.error('KakaoLink send: Send failed', pickerData);
+        this.logger.error('KakaoLink send: Send failed', pickerData);
         throw new KakaoLinkSendException();
       }
 
@@ -191,7 +193,7 @@ export class KakaoLink {
     });
 
     if (response.statusCode === 400) {
-      console.error('KakaoLink send: Send failed', response.statusCode);
+      this.logger.error('KakaoLink send: Send failed', response.statusCode);
       throw new KakaoLinkSendException();
     }
   }
@@ -416,7 +418,7 @@ export class KakaoLink {
 
     const authorizedAfter = await this._checkAuthorized(client);
     if (!authorizedAfter) {
-      console.error('Kakaolink Login: Unknown reason for login failure');
+      this.logger.error('Kakaolink Login: Unknown reason for login failure');
     }
 
     // self._cookies = dict(client.cookies) - extract cookies from got's cookieJar

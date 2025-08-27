@@ -34,7 +34,7 @@ describe('Bot', () => {
   const mockIrisUrl = '127.0.0.1:3000';
 
   beforeEach(() => {
-    bot = new Bot(mockIrisUrl);
+    bot = new Bot('Create-Node-Iris-App', mockIrisUrl);
     jest.clearAllMocks();
   });
 
@@ -45,21 +45,29 @@ describe('Bot', () => {
     });
 
     test('should validate URL format', () => {
-      expect(() => new Bot('invalid-url')).toThrow(
+      expect(() => new Bot('Create-Node-Iris-App', 'invalid-url')).toThrow(
         'Iris endpoint Address must be in IP:PORT format. ex) 172.30.10.66:3000'
       );
     });
 
     test('should clean up URL format correctly', () => {
-      const botWithHttpUrl = new Bot('http://127.0.0.1:3000/');
+      const botWithHttpUrl = new Bot(
+        'Create-Node-Iris-App',
+        'http://127.0.0.1:3000/'
+      );
       expect(botWithHttpUrl).toBeDefined();
 
-      const botWithWsUrl = new Bot('ws://127.0.0.1:3000');
+      const botWithWsUrl = new Bot(
+        'Create-Node-Iris-App',
+        'ws://127.0.0.1:3000'
+      );
       expect(botWithWsUrl).toBeDefined();
     });
 
     test('should accept maxWorkers option', () => {
-      const botWithOptions = new Bot(mockIrisUrl, { maxWorkers: 10 });
+      const botWithOptions = new Bot('Create-Node-Iris-App', mockIrisUrl, {
+        maxWorkers: 10,
+      });
       expect(botWithOptions).toBeDefined();
     });
   });
