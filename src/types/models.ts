@@ -505,9 +505,6 @@ export interface ReplyAttachment<N = 0, T = null> {
   src_mentions: string[];
 }
 
-// 첨부파일 타입 정의
-export type NUMSTRING = string | number;
-
 export interface VFields {
   [key: string]: any;
 }

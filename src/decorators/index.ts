@@ -547,53 +547,47 @@ export function HelpCommand(command: string) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (context: ChatContext) {
-      // Get the controller's prefix
-      let controllerPrefix = '';
-      const classPrefix = controllerPrefixStorage.get(target.constructor);
-      if (classPrefix !== undefined) {
-        controllerPrefix = classPrefix;
-      }
+      // Get bot instance for bot name
+      const { Bot } = await import('../services/Bot');
+      const bot = Bot.getInstance();
+      const botName = bot?.name || '봇';
 
       // Generate help text from registered commands
       const commands = getRegisteredCommands();
       const helpLines: string[] = [];
-      const groupedCommands = new Map<string, any[]>();
 
-      // Group commands by target controller
+      // Add header with bot name
+      helpLines.push(`${botName} 도움말`);
+      helpLines.push('\u200b'.repeat(500));
+
+      // Collect all commands and sort them
+      const allCommands: any[] = [];
       for (const [baseCommand, commandInfo] of commands) {
-        if (!groupedCommands.has(commandInfo.target)) {
-          groupedCommands.set(commandInfo.target, []);
-        }
-        groupedCommands.get(commandInfo.target)!.push({
-          baseCommand,
-          ...commandInfo,
+        // Get full command with prefix for this controller
+        const fullCommand = getFullCommand(
+          target.constructor,
+          commandInfo.originalMethod,
+          baseCommand
+        );
+
+        allCommands.push({
+          fullCommand,
+          description: commandInfo.description || '설명 없음',
         });
       }
 
-      // Build help text
-      for (const [controllerName, controllerCommands] of groupedCommands) {
-        if (controllerCommands.length === 0) continue;
+      // Sort commands alphabetically
+      allCommands.sort((a, b) => a.fullCommand.localeCompare(b.fullCommand));
 
-        // Add controller section header
-        helpLines.push(`**${controllerName} 명령어:**`);
-
-        for (const cmd of controllerCommands) {
-          // Get full command with prefix for this controller
-          const fullCommand = getFullCommand(
-            target.constructor,
-            cmd.originalMethod,
-            cmd.baseCommand
-          );
-
-          const description = cmd.description || '설명 없음';
-          helpLines.push(`• ${fullCommand} - ${description}`);
-        }
-
-        helpLines.push(''); // Empty line between sections
+      // Build help text in clean format
+      for (const cmd of allCommands) {
+        helpLines.push(`${cmd.fullCommand}`);
+        helpLines.push(` ⌊ ${cmd.description}`);
+        helpLines.push('');
       }
 
       // If no commands found, show a default message
-      if (helpLines.length === 0) {
+      if (allCommands.length === 0) {
         helpLines.push('등록된 명령어가 없습니다.');
       } else {
         // Remove last empty line

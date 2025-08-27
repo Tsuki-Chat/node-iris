@@ -43,6 +43,7 @@ export class Bot {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000; // Start with 1 second
   private logger: Logger;
+  private bootstrapLogger: Logger;
   public name: string;
 
   // Controller support
@@ -57,6 +58,7 @@ export class Bot {
     this.name = name;
     this.emitter = new EventEmitter(options.maxWorkers);
     this.logger = new Logger('Bot', { saveChatLogs: options.saveChatLogs });
+    this.bootstrapLogger = new Logger('Bootstrap');
 
     // Set static instance
     Bot.instance = this;
@@ -167,7 +169,7 @@ export class Bot {
       controllerClasses.forEach((controllerClass) => {
         const controller = new controllerClass();
         this.addController(controller);
-        this.logger.info(
+        this.bootstrapLogger.info(
           `Auto-registered ${controllerClass.name} for ${eventType} events`
         );
       });
@@ -233,6 +235,10 @@ export class Bot {
             // Other message types - create descriptive log based on type
             logMessage = this.getMessageTypeDescription(message);
             logMessageType = 'Type: ' + message.type;
+          }
+
+          if (logMessage.includes('\n')) {
+            logMessage = logMessage.split('\n')[0];
           }
 
           this.logger.chat(
@@ -611,6 +617,7 @@ export class Bot {
 
     switch (origin) {
       case 'MSG':
+      case 'WRITE':
         this.emitter.emit('message', [chat]);
         break;
       case 'NEWMEM':
