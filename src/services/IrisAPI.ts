@@ -74,9 +74,9 @@ export class IrisAPI implements IIrisAPI {
       }
 
       const response = await this.httpClient.post('/reply', {
-        type: 'image_multiple',
+        type: data.length === 1 ? 'image' : 'image_multiple',
         room: String(roomId),
-        data: data,
+        data: data.length === 1 ? data[0] : data,
       });
 
       return this.parse(response);
@@ -84,6 +84,87 @@ export class IrisAPI implements IIrisAPI {
       this.logger.error('Reply media failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Reply with images from URLs - automatically downloads and converts to base64
+   * @param roomId - Room ID to send message to
+   * @param imageUrls - Array of image URLs to download and send
+   * @returns Promise<any>
+   */
+  async replyImageUrls(
+    roomId: string | number,
+    imageUrls: string[]
+  ): Promise<any> {
+    try {
+      if (imageUrls.length === 0) {
+        this.logger.error('No image URLs provided');
+        return;
+      }
+
+      this.logger.debug(`Downloading ${imageUrls.length} images from URLs`);
+
+      // Download all images
+      const downloadPromises = imageUrls.map(async (url) => {
+        try {
+          // Extract referer from URL
+          const urlObj = new URL(url);
+          const referer = `${urlObj.protocol}//${urlObj.host}/`;
+
+          const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 30000,
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              Accept: 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+              'Sec-Fetch-Dest': 'image',
+              'Sec-Fetch-Mode': 'no-cors',
+              'Sec-Fetch-Site': 'cross-site',
+              Referer: referer,
+            },
+          });
+
+          return Buffer.from(response.data);
+        } catch (error) {
+          this.logger.error(`Failed to download image from ${url}:`, error);
+          throw new Error(`Failed to download image from ${url}: ${error}`);
+        }
+      });
+
+      const imageBuffers = await Promise.all(downloadPromises);
+
+      // Convert to base64
+      const data = imageBuffers.map((buffer) => buffer.toString('base64'));
+
+      const response = await this.httpClient.post('/reply', {
+        type: data.length === 1 ? 'image' : 'image_multiple',
+        room: String(roomId),
+        data: data.length === 1 ? data[0] : data,
+      });
+
+      this.logger.debug(
+        `Successfully sent ${data.length} images to room ${roomId}`
+      );
+      return this.parse(response);
+    } catch (error) {
+      this.logger.error('Reply image URLs failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reply with a single image from URL
+   * @param roomId - Room ID to send message to
+   * @param imageUrl - Image URL to download and send
+   * @returns Promise<any>
+   */
+  async replyImageUrl(roomId: string | number, imageUrl: string): Promise<any> {
+    return this.replyImageUrls(roomId, [imageUrl]);
   }
 
   async decrypt(

@@ -22,6 +22,8 @@ import {
   getMessageHandlers,
   getDecoratedMethods,
   debugDecoratorMetadata,
+  getFullCommand,
+  isCommandMatch,
 } from '../decorators';
 import { Logger } from '../utils/logger';
 
@@ -253,10 +255,17 @@ export class Bot {
           // Check all registered commands to see if any match
           const commands = getRegisteredCommands();
 
-          for (const [command, commandInfo] of commands) {
+          for (const [baseCommand, commandInfo] of commands) {
+            // Get the full command with prefix for this controller
+            const fullCommand = getFullCommand(
+              controller.constructor,
+              commandInfo.originalMethod,
+              baseCommand
+            );
+
             if (
-              typeof message.msg == 'string' &&
-              message.msg.startsWith(command)
+              typeof message.msg === 'string' &&
+              isCommandMatch(message.msg, fullCommand)
             ) {
               // Find the corresponding method in this controller
               const methodName = commandInfo.method;
@@ -264,17 +273,37 @@ export class Bot {
 
               if (method && typeof method === 'function') {
                 try {
+                  // Update context with command-specific parameter
+                  const commandParam =
+                    message.getParameterForCommand(fullCommand);
+                  const hasCommandParam =
+                    message.hasParameterForCommand(fullCommand);
+
+                  // Update the existing context's message properties instead of creating a new object
+                  const originalMessage = context.message;
+                  context.message.param = commandParam;
+                  context.message.hasParam = hasCommandParam;
+                  context.message.command = fullCommand;
+
                   this.logger.command(
                     room.name,
                     senderName || 'Unknown',
-                    `${command} -> ${methodName}`
+                    `${fullCommand} -> ${methodName}${commandParam ? ` (param: ${commandParam})` : ''}`
                   );
-                  await method.call(controller, context);
+
+                  try {
+                    await method.call(controller, context);
+                  } finally {
+                    // Restore original message properties
+                    context.message.param = originalMessage.param;
+                    context.message.hasParam = originalMessage.hasParam;
+                    context.message.command = originalMessage.command;
+                  }
                 } catch (error) {
                   this.logger.error(
-                    `Error executing command ${command} in room ${room.name}`,
+                    `Error executing command ${fullCommand} in room ${room.name}`,
                     error,
-                    { command, methodName, sender: senderName }
+                    { command: fullCommand, methodName, sender: senderName }
                   );
                 }
               }

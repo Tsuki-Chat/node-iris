@@ -1143,6 +1143,39 @@ export class Message {
   hasFileAttachment(): boolean {
     return isFileAttachment(this.attachment);
   }
+
+  /**
+   * Extract parameters from a message for a specific command
+   * @param fullCommand The full command including prefix (e.g., ">>echo", "!help")
+   * @returns The parameter string or undefined if no parameters
+   */
+  getParameterForCommand(fullCommand: string): string | undefined {
+    if (!isStringMessage(this.msg)) {
+      return undefined;
+    }
+
+    // Check if message starts with the command
+    if (this.msg === fullCommand) {
+      return undefined; // No parameters
+    }
+
+    if (this.msg.startsWith(fullCommand + ' ')) {
+      const parameterPart = this.msg.substring(fullCommand.length + 1);
+      return parameterPart.trim() || undefined;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Check if message has parameters for a specific command
+   * @param fullCommand The full command including prefix
+   * @returns True if the message has parameters for this command
+   */
+  hasParameterForCommand(fullCommand: string): boolean {
+    const param = this.getParameterForCommand(fullCommand);
+    return param !== undefined && param.length > 0;
+  }
 }
 
 export class Room {
@@ -1487,6 +1520,34 @@ export class ChatContext {
   async replyMedia(files: Buffer[], roomId?: string | number): Promise<void> {
     const targetRoomId = roomId || this.room.id;
     await this.api.replyMedia(targetRoomId, files);
+  }
+
+  /**
+   * Reply with images from URLs - automatically downloads and converts to base64
+   * @param imageUrls - Array of image URLs to download and send
+   * @param roomId - Optional room ID (defaults to current room)
+   */
+  async replyImageUrls(
+    imageUrls: string[],
+    roomId?: string | number
+  ): Promise<void> {
+    const targetRoomId = roomId || this.room.id;
+    // Temporary cast until interface is updated
+    await (this.api as any).replyImageUrls(targetRoomId, imageUrls);
+  }
+
+  /**
+   * Reply with a single image from URL
+   * @param imageUrl - Image URL to download and send
+   * @param roomId - Optional room ID (defaults to current room)
+   */
+  async replyImageUrl(
+    imageUrl: string,
+    roomId?: string | number
+  ): Promise<void> {
+    const targetRoomId = roomId || this.room.id;
+    // Temporary cast until interface is updated
+    await (this.api as any).replyImageUrl(targetRoomId, imageUrl);
   }
 
   async getSource(): Promise<ChatContext | null> {

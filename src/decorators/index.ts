@@ -503,7 +503,42 @@ export function IsNotBanned(
 /**
  * Decorator for bot commands with automatic command matching
  */
-export function BotCommand(command: string) {
+export function BotCommand(command: string, description?: string) {
+  return function (
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor
+  ) {
+    const originalMethod = descriptor.value;
+
+    // Store metadata for controller scanning
+    const metadata = decoratorMetadata.get(originalMethod) || {
+      commands: [],
+      hasDecorators: false,
+    };
+
+    // Store the original command without prefix for metadata
+    metadata.commands.push(command);
+    metadata.hasDecorators = true;
+    decoratorMetadata.set(originalMethod, metadata);
+
+    // Register command for help system and execution
+    commandRegistry.set(command, {
+      method: propertyKey,
+      target: target.constructor.name,
+      originalCommand: command,
+      originalMethod: originalMethod,
+      description: description,
+    });
+
+    return descriptor;
+  };
+}
+
+/**
+ * Decorator for help commands that automatically generates help text from registered commands
+ */
+export function HelpCommand(command: string) {
   return function (
     target: any,
     propertyKey: string,
@@ -512,32 +547,63 @@ export function BotCommand(command: string) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (context: ChatContext) {
-      // Get prefix - method prefix overrides controller prefix
-      let prefix = '';
-      const methodPrefix = methodPrefixStorage.get(originalMethod);
-      if (methodPrefix !== undefined) {
-        prefix = methodPrefix;
+      // Get the controller's prefix
+      let controllerPrefix = '';
+      const classPrefix = controllerPrefixStorage.get(target.constructor);
+      if (classPrefix !== undefined) {
+        controllerPrefix = classPrefix;
+      }
+
+      // Generate help text from registered commands
+      const commands = getRegisteredCommands();
+      const helpLines: string[] = [];
+      const groupedCommands = new Map<string, any[]>();
+
+      // Group commands by target controller
+      for (const [baseCommand, commandInfo] of commands) {
+        if (!groupedCommands.has(commandInfo.target)) {
+          groupedCommands.set(commandInfo.target, []);
+        }
+        groupedCommands.get(commandInfo.target)!.push({
+          baseCommand,
+          ...commandInfo,
+        });
+      }
+
+      // Build help text
+      for (const [controllerName, controllerCommands] of groupedCommands) {
+        if (controllerCommands.length === 0) continue;
+
+        // Add controller section header
+        helpLines.push(`**${controllerName} 명령어:**`);
+
+        for (const cmd of controllerCommands) {
+          // Get full command with prefix for this controller
+          const fullCommand = getFullCommand(
+            target.constructor,
+            cmd.originalMethod,
+            cmd.baseCommand
+          );
+
+          const description = cmd.description || '설명 없음';
+          helpLines.push(`• ${fullCommand} - ${description}`);
+        }
+
+        helpLines.push(''); // Empty line between sections
+      }
+
+      // If no commands found, show a default message
+      if (helpLines.length === 0) {
+        helpLines.push('등록된 명령어가 없습니다.');
       } else {
-        const controllerPrefix = controllerPrefixStorage.get(
-          target.constructor
-        );
-        if (controllerPrefix !== undefined) {
-          prefix = controllerPrefix;
+        // Remove last empty line
+        if (helpLines[helpLines.length - 1] === '') {
+          helpLines.pop();
         }
       }
 
-      // Build full command with prefix
-      const fullCommand = prefix + command;
-
-      if (
-        context.message.msg !== fullCommand &&
-        typeof context.message.msg === 'string' &&
-        !context.message.msg.startsWith(fullCommand + ' ')
-      ) {
-        return;
-      }
-
-      return originalMethod.call(this, context);
+      const helpText = helpLines.join('\n');
+      await context.reply(helpText);
     };
 
     // Store metadata for controller scanning
@@ -551,28 +617,58 @@ export function BotCommand(command: string) {
     metadata.hasDecorators = true;
     decoratorMetadata.set(originalMethod, metadata);
 
-    // Register command for help system (with prefix resolution)
-    let prefix = '';
-    const methodPrefix = methodPrefixStorage.get(originalMethod);
-    if (methodPrefix !== undefined) {
-      prefix = methodPrefix;
-    } else {
-      const controllerPrefix = controllerPrefixStorage.get(target.constructor);
-      if (controllerPrefix !== undefined) {
-        prefix = controllerPrefix;
-      }
-    }
-
-    const fullCommand = prefix + command;
-    commandRegistry.set(fullCommand, {
+    // Register help command
+    commandRegistry.set(command, {
       method: propertyKey,
       target: target.constructor.name,
       originalCommand: command,
-      prefix: prefix,
+      originalMethod: originalMethod,
+      description: '도움말 표시',
     });
 
     return descriptor;
   };
+}
+
+/**
+ * Helper function to get the full command with prefix for a controller and method
+ */
+export function getFullCommand(
+  controllerConstructor: Function,
+  methodFunction: Function,
+  baseCommand: string
+): string {
+  let prefix = '';
+
+  // Method prefix overrides controller prefix
+  const methodPrefix = methodPrefixStorage.get(methodFunction);
+  if (methodPrefix !== undefined) {
+    prefix = methodPrefix;
+  } else {
+    const controllerPrefix = controllerPrefixStorage.get(controllerConstructor);
+    if (controllerPrefix !== undefined) {
+      prefix = controllerPrefix;
+    }
+  }
+
+  return prefix + baseCommand;
+}
+
+/**
+ * Helper function to check if a message matches a command
+ */
+export function isCommandMatch(
+  messageText: string,
+  fullCommand: string
+): boolean {
+  if (typeof messageText !== 'string') {
+    return false;
+  }
+
+  // Exact match or command followed by space (for parameters)
+  return (
+    messageText === fullCommand || messageText.startsWith(fullCommand + ' ')
+  );
 }
 
 /**

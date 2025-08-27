@@ -47,6 +47,7 @@ export {
   IsNotBanned,
   HasRole,
   BotCommand,
+  HelpCommand,
   Prefix,
   MethodPrefix,
   Throttle,
