@@ -30,6 +30,12 @@ import { Logger } from '../utils/logger';
 export type EventHandler = (context: ChatContext) => void | Promise<void>;
 export type ErrorHandler = (context: ErrorContext) => void | Promise<void>;
 
+export interface BotOptions {
+  maxWorkers?: number;
+  saveChatLogs?: boolean;
+  autoRegisterControllers?: boolean;
+}
+
 export class Bot {
   private static instance: Bot | null = null;
 
@@ -50,11 +56,7 @@ export class Bot {
   private controllers: BaseController[] = [];
   private registeredMethods: Function[] = [];
 
-  constructor(
-    name: string,
-    irisUrl: string,
-    options: { maxWorkers?: number; saveChatLogs?: boolean } = {}
-  ) {
+  constructor(name: string, irisUrl: string, options: BotOptions = {}) {
     this.name = name;
     this.emitter = new EventEmitter(options.maxWorkers);
     this.logger = new Logger('Bot', { saveChatLogs: options.saveChatLogs });
@@ -80,8 +82,10 @@ export class Bot {
     this.irisWsEndpoint = `ws://${this.irisUrl}/ws`;
     this.api = new IrisAPI(`http://${this.irisUrl}`);
 
-    // Auto-register controllers
-    this.autoRegisterControllers();
+    // Auto-register controllers only if enabled (default: true for backward compatibility)
+    if (options.autoRegisterControllers !== false) {
+      this.autoRegisterControllers();
+    }
   }
 
   /**
@@ -161,6 +165,26 @@ export class Bot {
   }
 
   /**
+   * Register controllers from constructor classes
+   */
+  registerControllers(controllerClasses: Array<new () => any>): void {
+    for (const ControllerClass of controllerClasses) {
+      try {
+        const controller = new ControllerClass();
+        this.addController(controller);
+        this.bootstrapLogger.info(
+          `Registered controller: ${ControllerClass.name}`
+        );
+      } catch (error) {
+        this.bootstrapLogger.error(
+          `Failed to register controller ${ControllerClass.name}:`,
+          error
+        );
+      }
+    }
+  }
+
+  /**
    * Auto-register controllers from the decorator registry
    */
   private autoRegisterControllers(): void {
@@ -181,6 +205,8 @@ export class Bot {
    */
   private registerControllerMethods(controller: any): void {
     const controllerName = controller.constructor.name;
+
+    debugDecoratorMetadata(controller);
 
     // Get the registered controller types to determine which event this controller handles
     const registeredControllers = getRegisteredControllers();
@@ -388,9 +414,6 @@ export class Bot {
         break;
 
       case 'feed':
-        // Debug the controller immediately when registering (only in development)
-        debugDecoratorMetadata(controller);
-
         this.on('feed', async (context: ChatContext) => {
           try {
             const { message, room, sender } = context;

@@ -503,7 +503,7 @@ export function IsNotBanned(
 /**
  * Decorator for bot commands with automatic command matching
  */
-export function BotCommand(command: string, description?: string) {
+export function BotCommand(commands: string | string[], description?: string) {
   return function (
     target: any,
     propertyKey: string,
@@ -511,25 +511,31 @@ export function BotCommand(command: string, description?: string) {
   ) {
     const originalMethod = descriptor.value;
 
+    // Normalize commands to array
+    const commandArray = Array.isArray(commands) ? commands : [commands];
+
     // Store metadata for controller scanning
     const metadata = decoratorMetadata.get(originalMethod) || {
       commands: [],
       hasDecorators: false,
     };
 
-    // Store the original command without prefix for metadata
-    metadata.commands.push(command);
+    // Add all commands to metadata
+    metadata.commands.push(...commandArray);
     metadata.hasDecorators = true;
     decoratorMetadata.set(originalMethod, metadata);
 
-    // Register command for help system and execution
-    commandRegistry.set(command, {
-      method: propertyKey,
-      target: target.constructor.name,
-      originalCommand: command,
-      originalMethod: originalMethod,
-      description: description,
-    });
+    // Register each command individually for help system and execution
+    for (const command of commandArray) {
+      commandRegistry.set(command, {
+        method: propertyKey,
+        target: target.constructor.name,
+        originalCommand: command,
+        originalMethod: originalMethod,
+        description: description,
+        allCommands: commandArray, // Store all alternative commands
+      });
+    }
 
     return descriptor;
   };
@@ -560,34 +566,66 @@ export function HelpCommand(command: string) {
       helpLines.push(`${botName} 도움말`);
       helpLines.push('\u200b'.repeat(500));
 
-      // Collect all commands and sort them
-      const allCommands: any[] = [];
+      // Group commands by method to avoid duplicates
+      const commandGroups = new Map<string, any>();
+
       for (const [baseCommand, commandInfo] of commands) {
-        // Get full command with prefix for this controller
-        const fullCommand = getFullCommand(
-          target.constructor,
-          commandInfo.originalMethod,
-          baseCommand
+        const methodKey = `${commandInfo.target}.${commandInfo.method}`;
+
+        if (!commandGroups.has(methodKey)) {
+          commandGroups.set(methodKey, {
+            commands: [],
+            description: commandInfo.description || '설명 없음',
+            originalMethod: commandInfo.originalMethod,
+            target: commandInfo.target,
+          });
+        }
+
+        commandGroups.get(methodKey)!.commands.push(baseCommand);
+      }
+
+      // Collect all command groups and sort them
+      const allCommandGroups: any[] = [];
+      for (const [methodKey, groupInfo] of commandGroups) {
+        // Get full commands with prefix for this controller
+        const fullCommands = groupInfo.commands.map((baseCommand: string) =>
+          getFullCommand(
+            target.constructor,
+            groupInfo.originalMethod,
+            baseCommand
+          )
         );
 
-        allCommands.push({
-          fullCommand,
-          description: commandInfo.description || '설명 없음',
+        // Sort commands within the group
+        fullCommands.sort();
+
+        allCommandGroups.push({
+          fullCommands,
+          description: groupInfo.description,
+          primaryCommand: fullCommands[0], // Use first command for sorting
         });
       }
 
-      // Sort commands alphabetically
-      allCommands.sort((a, b) => a.fullCommand.localeCompare(b.fullCommand));
+      // Sort command groups alphabetically by primary command
+      allCommandGroups.sort((a, b) =>
+        a.primaryCommand.localeCompare(b.primaryCommand)
+      );
 
       // Build help text in clean format
-      for (const cmd of allCommands) {
-        helpLines.push(`${cmd.fullCommand}`);
-        helpLines.push(` ⌊ ${cmd.description}`);
+      for (const group of allCommandGroups) {
+        if (group.fullCommands.length === 1) {
+          // Single command
+          helpLines.push(`${group.fullCommands[0]}`);
+        } else {
+          // Multiple commands - show alternatives
+          helpLines.push(`${group.fullCommands.join(' | ')}`);
+        }
+        helpLines.push(` ⌊ ${group.description}`);
         helpLines.push('');
       }
 
       // If no commands found, show a default message
-      if (allCommands.length === 0) {
+      if (allCommandGroups.length === 0) {
         helpLines.push('등록된 명령어가 없습니다.');
       } else {
         // Remove last empty line
@@ -765,21 +803,36 @@ export function getMessageHandlers(controllerInstance: any): Function[] {
  */
 export function debugDecoratorMetadata(controllerInstance: any): void {
   const logger = new Logger('DecoratorMetadata');
-  logger.debug(
+
+  // Force enable debug logging by creating a temporary winston logger
+  const winston = require('winston');
+  const debugLogger = winston.createLogger({
+    level: 'debug',
+    format: winston.format.combine(
+      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+      winston.format.colorize(),
+      winston.format.printf(({ timestamp, level, message }: any) => {
+        return `[${timestamp}] [${level}] [DecoratorMetadata] ${message}`;
+      })
+    ),
+    transports: [new winston.transports.Console()],
+  });
+
+  debugLogger.debug(
     `\n=== DEBUG Decorator Metadata for ${controllerInstance.constructor.name} ===`
   );
 
   const prototype = Object.getPrototypeOf(controllerInstance);
   const methodNames = Object.getOwnPropertyNames(prototype);
 
-  logger.debug(`Total methods found: ${methodNames.length}`);
-  logger.debug(`Methods: ${methodNames.join(', ')}`);
+  debugLogger.debug(`Total methods found: ${methodNames.length}`);
+  debugLogger.debug(`Methods: ${methodNames.join(', ')}`);
 
-  logger.debug(`\nDecoratorMetadata Map size: ${decoratorMetadata.size}`);
-  logger.debug('All decoratorMetadata entries:');
+  debugLogger.debug(`\nDecoratorMetadata Map size: ${decoratorMetadata.size}`);
+  debugLogger.debug('All decoratorMetadata entries:');
   let entryIndex = 0;
   for (const [func, metadata] of decoratorMetadata.entries()) {
-    logger.debug(`  Entry ${entryIndex++}: ${func.name} ->`, metadata);
+    debugLogger.debug(`  Entry ${entryIndex++}: ${func.name} ->`, metadata);
   }
 
   for (const methodName of methodNames) {
@@ -788,27 +841,27 @@ export function debugDecoratorMetadata(controllerInstance: any): void {
       const mapMetadata = decoratorMetadata.get(method);
       const funcMetadata = (method as any).__decoratorMetadata;
 
-      logger.debug(`\nMethod: ${methodName}`);
-      logger.debug(`  Function reference: ${method.name}`);
-      logger.debug(`  Map Metadata: ${JSON.stringify(mapMetadata)}`);
-      logger.debug(
+      debugLogger.debug(`\nMethod: ${methodName}`);
+      debugLogger.debug(`  Function reference: ${method.name}`);
+      debugLogger.debug(`  Map Metadata: ${JSON.stringify(mapMetadata)}`);
+      debugLogger.debug(
         `  Function Property Metadata: ${JSON.stringify(funcMetadata)}`
       );
-      logger.debug(
+      debugLogger.debug(
         `  Has isMessageHandler (Map): ${mapMetadata?.isMessageHandler === true}`
       );
-      logger.debug(
+      debugLogger.debug(
         `  Has isMessageHandler (Property): ${funcMetadata?.isMessageHandler === true}`
       );
 
       // Check if the method has been wrapped by decorator
-      logger.debug(
+      debugLogger.debug(
         `  Function toString preview: ${method.toString().substring(0, 100)}...`
       );
     }
   }
 
-  logger.debug('=== END DEBUG Decorator Metadata ===\n');
+  debugLogger.debug('=== END DEBUG Decorator Metadata ===\n');
 }
 
 /**

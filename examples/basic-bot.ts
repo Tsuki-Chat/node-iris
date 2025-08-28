@@ -14,7 +14,7 @@ import { Bot, ChatContext, decorators } from '../src';
 const IRIS_URL = process.env.IRIS_URL || '127.0.0.1:3000';
 
 // Bot 인스턴스 생성
-const bot = new Bot(IRIS_URL, { maxWorkers: 4 });
+const bot = new Bot('Create-Node-Iris-App', IRIS_URL, { maxWorkers: 4 });
 
 // 간단한 메시지 핸들러
 bot.on('message', async (context: ChatContext) => {

@@ -38,6 +38,9 @@ export {
   IrisRawData,
 } from './types/models';
 
+// Controllers
+export { BaseController } from './controllers/BaseController';
+
 // Decorators
 export {
   // Method decorators
@@ -51,9 +54,10 @@ export {
   Prefix,
   MethodPrefix,
   Throttle,
-  OnMessage,
   // Message type decorators
+  OnMessage,
   OnNormalMessage,
+  OnFeedMessage,
   OnPhotoMessage,
   OnVideoMessage,
   OnAudioMessage,
@@ -65,7 +69,6 @@ export {
   OnMultiPhotoMessage,
   OnNewMultiPhotoMessage,
   OnImageMessage,
-  OnFeedMessage,
   // Feed type decorators
   OnInviteUserFeed,
   OnLeaveUserFeed,
@@ -77,13 +80,14 @@ export {
   OnHandOverHostFeed,
   OnHideMessageFeed,
   // Controller class decorators
+  ChatController as Controller,
+  ChatController,
   MessageController,
   NewMemberController,
   DeleteMemberController,
   FeedController,
   ErrorController,
   UnknownController,
-  ChatController,
   // Function decorators (backward compatibility)
   hasParam,
   isReply,
@@ -102,7 +106,7 @@ export { EventEmitter } from './utils/eventEmitter';
 export { Config } from './utils/config';
 
 // Types
-export type { EventHandler, ErrorHandler } from './services/Bot';
+export type { EventHandler, ErrorHandler, BotOptions } from './services/Bot';
 
 // Version
 export const version = '1.6.16';
