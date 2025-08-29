@@ -3,7 +3,6 @@
  */
 
 import { ChatContext } from '../types/models';
-import { Logger } from '../utils/logger';
 
 export type DecoratorHandler = (context: ChatContext) => void | Promise<void>;
 
@@ -706,17 +705,27 @@ export function isCommandMatch(
 /**
  * Decorator for throttling commands (rate limiting)
  */
-export function Throttle(maxCalls: number, windowMs: number) {
+export function Throttle(
+  maxCalls: number,
+  windowSeconds: number,
+  callback?: (
+    context: ChatContext,
+    maxCalls: number,
+    windowMs: number,
+    secondsUntilNext: number
+  ) => Promise<void>
+) {
   return function (
     target: any,
     propertyKey: string,
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
+    const windowMs = windowSeconds * 1000;
 
     descriptor.value = async function (context: ChatContext) {
       const userId = context.sender.id;
-      const methodKey = `${target.constructor.name}.${propertyKey}`;
+      const methodKey = `room${context.room.id}.${target.constructor.name}.${propertyKey}`;
       const now = Date.now();
 
       if (!throttleStorage.has(methodKey)) {
@@ -732,10 +741,24 @@ export function Throttle(maxCalls: number, windowMs: number) {
       );
 
       if (validCalls.length >= maxCalls) {
-        await context.reply(
-          `⏱️ 명령어 사용 제한: ${windowMs / 1000}초 내에 최대 ${maxCalls}번만 사용 가능합니다.`
-        );
-        return;
+        // Calculate next available time (oldest call + window)
+        const oldestCall = Math.min(...validCalls);
+        const nextAvailableTime = oldestCall + windowMs;
+        const secondsUntilNext = Math.ceil((nextAvailableTime - now) / 1000);
+        if (callback) {
+          await callback(
+            context,
+            maxCalls,
+            Math.floor(windowMs / 1000),
+            secondsUntilNext
+          );
+          return;
+        } else {
+          await context.reply(
+            `⏱️ 명령어 사용 제한: ${windowMs / 1000}초 내에 최대 ${maxCalls}번만 사용 가능합니다.\n 다음 사용 가능 시간: ${secondsUntilNext}초 후`
+          );
+          return;
+        }
       }
 
       // Add current call
@@ -802,8 +825,6 @@ export function getMessageHandlers(controllerInstance: any): Function[] {
  * Debug function to inspect decorator metadata
  */
 export function debugDecoratorMetadata(controllerInstance: any): void {
-  const logger = new Logger('DecoratorMetadata');
-
   // Force enable debug logging by creating a temporary winston logger
   const winston = require('winston');
   const debugLogger = winston.createLogger({
