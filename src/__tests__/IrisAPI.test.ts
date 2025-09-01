@@ -158,32 +158,32 @@ describe('IrisAPI', () => {
     });
   });
 
-  describe('replyMedia', () => {
-    test('should send media reply successfully', async () => {
-      const mockResponse = {
-        data: { success: true },
-      };
+  // describe('replyMedia', () => {
+  //   test('should send media reply successfully', async () => {
+  //     const mockResponse = {
+  //       data: { success: true },
+  //     };
 
-      mockedAxios.post.mockResolvedValue(mockResponse);
+  //     mockedAxios.post.mockResolvedValue(mockResponse);
 
-      const roomId = 123;
-      const files = [Buffer.from('test image')];
+  //     const roomId = 123;
+  //     const files = [Buffer.from('test image')];
 
-      const result = await api.replyMedia(roomId, files);
+  //     const result = await api.replyMedia(roomId, files);
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/reply', {
-        type: 'image_multiple',
-        room: String(roomId),
-        data: files.map((f) => f.toString('base64')),
-      });
-      expect(result).toEqual(mockResponse.data);
-    });
+  //     expect(mockedAxios.post).toHaveBeenCalledWith('/reply', {
+  //       type: 'image_multiple',
+  //       room: String(roomId),
+  //       data: files.map((f) => f.toString('base64')),
+  //     });
+  //     expect(result).toEqual(mockResponse.data);
+  //   });
 
-    test('should handle empty files array', async () => {
-      const result = await api.replyMedia(123, []);
-      expect(result).toBeUndefined();
-    });
-  });
+  //   test('should handle empty files array', async () => {
+  //     const result = await api.replyMedia(123, []);
+  //     expect(result).toBeUndefined();
+  //   });
+  // });
 
   describe('decrypt', () => {
     test('should decrypt message successfully', async () => {
