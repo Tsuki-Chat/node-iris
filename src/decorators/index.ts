@@ -3,6 +3,7 @@
  */
 
 import { ChatContext } from '../types/models';
+import { BatchScheduler } from '../services/BatchScheduler';
 
 export type DecoratorHandler = (context: ChatContext) => void | Promise<void>;
 
@@ -14,6 +15,12 @@ const commandRegistry = new Map<string, any>();
 
 // Controller registry for auto-registration
 const controllerRegistry = new Map<string, any[]>();
+
+// Batch controller registry
+const batchControllerRegistry = new Map<string, any[]>();
+
+// Bootstrap controller registry
+const bootstrapControllerRegistry = new Map<string, any[]>();
 
 // Prefix storage for controllers and methods
 const controllerPrefixStorage = new Map<Function, string>();
@@ -1031,4 +1038,257 @@ export function getDecoratedMethods(controller: any): Function[] {
   }
 
   return methods;
+}
+
+// ===== BATCH SCHEDULING DECORATORS =====
+
+/**
+ * Class decorator for BatchController
+ */
+export function BatchController<T extends { new (...args: any[]): {} }>(
+  constructor: T
+) {
+  registerController('batch', constructor);
+  
+  // Also register in batch controller registry
+  const existing = batchControllerRegistry.get('batch') || [];
+  existing.push(constructor);
+  batchControllerRegistry.set('batch', existing);
+  
+  return constructor;
+}
+
+/**
+ * Class decorator for BootstrapController
+ */
+export function BootstrapController<T extends { new (...args: any[]): {} }>(
+  constructor: T
+) {
+  registerController('bootstrap', constructor);
+  
+  // Also register in bootstrap controller registry
+  const existing = bootstrapControllerRegistry.get('bootstrap') || [];
+  existing.push(constructor);
+  bootstrapControllerRegistry.set('bootstrap', existing);
+  
+  return constructor;
+}
+
+/**
+ * Schedule decorator for batch processing
+ * @param interval - 실행 간격 (밀리초)
+ * @param scheduleId - 스케줄 ID (선택사항, 메서드명을 기본값으로 사용)
+ */
+export function Schedule(interval: number, scheduleId?: string) {
+  return function (
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor
+  ) {
+    const originalMethod = descriptor.value;
+    const id = scheduleId || `${target.constructor.name}.${propertyKey}`;
+    
+    // 메타데이터 저장 (실제 등록은 Bot에서 수행)
+    const metadata = decoratorMetadata.get(originalMethod) || {
+      commands: [],
+      hasDecorators: false,
+    };
+    metadata.hasDecorators = true;
+    (metadata as any).scheduleId = id;
+    (metadata as any).scheduleInterval = interval;
+    
+    // Set metadata as function property
+    (originalMethod as any).__decoratorMetadata = metadata;
+    decoratorMetadata.set(originalMethod, metadata);
+  };
+}
+
+/**
+ * ScheduleMessage decorator for timed message scheduling
+ * @param key - 스케줄 키 (메시지 그룹 식별자)
+ */
+export function ScheduleMessage(key: string) {
+  return function (
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor
+  ) {
+    const originalMethod = descriptor.value;
+    
+    // 메타데이터 저장
+    const metadata = decoratorMetadata.get(originalMethod) || {
+      commands: [],
+      hasDecorators: false,
+    };
+    metadata.hasDecorators = true;
+    (metadata as any).scheduleMessageKey = key;
+    
+    // Set metadata as function property
+    (originalMethod as any).__decoratorMetadata = metadata;
+    decoratorMetadata.set(originalMethod, metadata);
+  };
+}
+
+/**
+ * Bootstrap decorator for initialization methods
+ * @param priority - 실행 우선순위 (높을수록 먼저 실행)
+ */
+export function Bootstrap(priority: number = 0) {
+  return function (
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor
+  ) {
+    const originalMethod = descriptor.value;
+    
+    // 메타데이터 저장 (실제 등록은 Bot에서 수행)
+    const metadata = decoratorMetadata.get(originalMethod) || {
+      commands: [],
+      hasDecorators: false,
+    };
+    metadata.hasDecorators = true;
+    (metadata as any).bootstrapPriority = priority;
+    
+    // Set metadata as function property
+    (originalMethod as any).__decoratorMetadata = metadata;
+    decoratorMetadata.set(originalMethod, metadata);
+  };
+}
+
+/**
+ * Helper function to get batch controllers
+ */
+export function getBatchControllers(): Map<string, any[]> {
+  return batchControllerRegistry;
+}
+
+/**
+ * Helper function to get bootstrap controllers
+ */
+export function getBootstrapControllers(): Map<string, any[]> {
+  return bootstrapControllerRegistry;
+}
+
+/**
+ * Helper function to get schedule methods from a controller
+ */
+export function getScheduleMethods(controller: any): Array<{
+  method: Function;
+  scheduleId: string;
+  interval: number;
+}> {
+  const methods: Array<{
+    method: Function;
+    scheduleId: string;
+    interval: number;
+  }> = [];
+  
+  const prototype = Object.getPrototypeOf(controller);
+  const methodNames = Object.getOwnPropertyNames(prototype);
+
+  for (const methodName of methodNames) {
+    if (methodName === 'constructor') continue;
+
+    const method = controller[methodName];
+    if (typeof method === 'function') {
+      const metadata = decoratorMetadata.get(method);
+      if (metadata && (metadata as any).scheduleId) {
+        methods.push({
+          method: method.bind(controller),
+          scheduleId: (metadata as any).scheduleId,
+          interval: (metadata as any).scheduleInterval,
+        });
+      }
+    }
+  }
+
+  return methods;
+}
+
+/**
+ * Helper function to get schedule message methods from a controller
+ */
+export function getScheduleMessageMethods(controller: any): Array<{
+  method: Function;
+  key: string;
+}> {
+  const methods: Array<{
+    method: Function;
+    key: string;
+  }> = [];
+  
+  const prototype = Object.getPrototypeOf(controller);
+  const methodNames = Object.getOwnPropertyNames(prototype);
+
+  for (const methodName of methodNames) {
+    if (methodName === 'constructor') continue;
+
+    const method = controller[methodName];
+    if (typeof method === 'function') {
+      const metadata = decoratorMetadata.get(method);
+      if (metadata && (metadata as any).scheduleMessageKey) {
+        methods.push({
+          method: method.bind(controller),
+          key: (metadata as any).scheduleMessageKey,
+        });
+      }
+    }
+  }
+
+  return methods;
+}
+
+/**
+ * Helper function to get bootstrap methods from a controller
+ */
+export function getBootstrapMethods(controller: any): Array<{
+  method: Function;
+  priority: number;
+}> {
+  const methods: Array<{
+    method: Function;
+    priority: number;
+  }> = [];
+  
+  const prototype = Object.getPrototypeOf(controller);
+  const methodNames = Object.getOwnPropertyNames(prototype);
+
+  for (const methodName of methodNames) {
+    if (methodName === 'constructor') continue;
+
+    const method = controller[methodName];
+    if (typeof method === 'function') {
+      const metadata = decoratorMetadata.get(method);
+      if (metadata && typeof (metadata as any).bootstrapPriority === 'number') {
+        methods.push({
+          method: method.bind(controller),
+          priority: (metadata as any).bootstrapPriority,
+        });
+      }
+    }
+  }
+
+  return methods;
+}
+
+/**
+ * Helper function to add context to schedule
+ */
+export function addContextToSchedule(scheduleId: string, context: ChatContext): void {
+  const scheduler = BatchScheduler.getInstance();
+  scheduler.addContextToSchedule(scheduleId, context);
+}
+
+/**
+ * Helper function to schedule a message
+ */
+export function scheduleMessage(
+  id: string,
+  roomId: string,
+  message: string,
+  scheduledTime: number,
+  metadata?: any
+): void {
+  const scheduler = BatchScheduler.getInstance();
+  scheduler.scheduleMessage(id, roomId, message, scheduledTime, metadata);
 }

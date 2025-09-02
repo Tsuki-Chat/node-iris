@@ -24,7 +24,14 @@ import {
   debugDecoratorMetadata,
   getFullCommand,
   isCommandMatch,
+  getBatchControllers,
+  getBootstrapControllers,
+  getScheduleMethods,
+  getScheduleMessageMethods,
+  getBootstrapMethods,
+  addContextToSchedule,
 } from '../decorators';
+import { BatchScheduler, ScheduledMessage } from './BatchScheduler';
 import { Logger } from '../utils/logger';
 
 export type EventHandler = (context: ChatContext) => void | Promise<void>;
@@ -55,6 +62,7 @@ export class Bot {
   // Controller support
   private controllers: BaseController[] = [];
   private registeredMethods: Function[] = [];
+  private batchScheduler: BatchScheduler;
 
   constructor(name: string, irisUrl: string, options: BotOptions = {}) {
     this.name = name;
@@ -81,6 +89,9 @@ export class Bot {
 
     this.irisWsEndpoint = `ws://${this.irisUrl}/ws`;
     this.api = new IrisAPI(`http://${this.irisUrl}`);
+
+    // Initialize BatchScheduler
+    this.batchScheduler = BatchScheduler.getInstance();
 
     // Auto-register controllers only if enabled (default: true for backward compatibility)
     if (options.autoRegisterControllers !== false) {
@@ -171,10 +182,42 @@ export class Bot {
     for (const ControllerClass of controllerClasses) {
       try {
         const controller = new ControllerClass();
-        this.addController(controller);
-        this.bootstrapLogger.info(
-          `Registered controller: ${ControllerClass.name}`
-        );
+
+        // Check if it's a batch controller
+        const batchControllers = getBatchControllers();
+        let isBatchController = false;
+        for (const [eventType, controllers] of batchControllers) {
+          if (controllers.includes(ControllerClass)) {
+            this.registerBatchController(controller);
+            isBatchController = true;
+            this.bootstrapLogger.info(
+              `Registered batch controller: ${ControllerClass.name}`
+            );
+            break;
+          }
+        }
+
+        // Check if it's a bootstrap controller
+        const bootstrapControllers = getBootstrapControllers();
+        let isBootstrapController = false;
+        for (const [eventType, controllers] of bootstrapControllers) {
+          if (controllers.includes(ControllerClass)) {
+            this.registerBootstrapController(controller);
+            isBootstrapController = true;
+            this.bootstrapLogger.info(
+              `Registered bootstrap controller: ${ControllerClass.name}`
+            );
+            break;
+          }
+        }
+
+        // If it's neither batch nor bootstrap, register as normal controller
+        if (!isBatchController && !isBootstrapController) {
+          this.addController(controller);
+          this.bootstrapLogger.info(
+            `Registered controller: ${ControllerClass.name}`
+          );
+        }
       } catch (error) {
         this.bootstrapLogger.error(
           `Failed to register controller ${ControllerClass.name}:`,
@@ -185,9 +228,65 @@ export class Bot {
   }
 
   /**
+   * Register a batch controller
+   */
+  registerBatchController(controller: any): void {
+    // Register schedule methods
+    const scheduleMethods = getScheduleMethods(controller);
+    for (const { method, scheduleId, interval } of scheduleMethods) {
+      this.batchScheduler.registerScheduleTask(
+        scheduleId,
+        interval,
+        method as (contexts: ChatContext[]) => Promise<void>
+      );
+      this.bootstrapLogger.info(
+        `Registered schedule task: ${scheduleId} (${interval}ms)`
+      );
+    }
+
+    // Register schedule message methods
+    const scheduleMessageMethods = getScheduleMessageMethods(controller);
+    for (const { method, key } of scheduleMessageMethods) {
+      // Set up scheduled message handler
+      this.batchScheduler.onScheduledMessage(async (scheduledMessage) => {
+        if (scheduledMessage.metadata?.key === key) {
+          try {
+            await method(scheduledMessage);
+          } catch (error) {
+            this.logger.error(
+              `Schedule message handler error for key ${key}:`,
+              error
+            );
+          }
+        }
+      });
+      this.bootstrapLogger.info(
+        `Registered schedule message handler for key: ${key}`
+      );
+    }
+  }
+
+  /**
+   * Register a bootstrap controller
+   */
+  registerBootstrapController(controller: any): void {
+    const bootstrapMethods = getBootstrapMethods(controller);
+    for (const { method, priority } of bootstrapMethods) {
+      this.batchScheduler.registerBootstrapHandler(
+        method as () => Promise<void>,
+        priority
+      );
+      this.bootstrapLogger.info(
+        `Registered bootstrap handler with priority: ${priority}`
+      );
+    }
+  }
+
+  /**
    * Auto-register controllers from the decorator registry
    */
   private autoRegisterControllers(): void {
+    // Register normal controllers
     const controllers = getRegisteredControllers();
     controllers.forEach((controllerClasses, eventType) => {
       controllerClasses.forEach((controllerClass) => {
@@ -195,6 +294,30 @@ export class Bot {
         this.addController(controller);
         this.bootstrapLogger.info(
           `Auto-registered ${controllerClass.name} for ${eventType} events`
+        );
+      });
+    });
+
+    // Register batch controllers
+    const batchControllers = getBatchControllers();
+    batchControllers.forEach((controllerClasses, eventType) => {
+      controllerClasses.forEach((controllerClass) => {
+        const controller = new controllerClass();
+        this.registerBatchController(controller);
+        this.bootstrapLogger.info(
+          `Auto-registered batch controller: ${controllerClass.name}`
+        );
+      });
+    });
+
+    // Register bootstrap controllers
+    const bootstrapControllers = getBootstrapControllers();
+    bootstrapControllers.forEach((controllerClasses, eventType) => {
+      controllerClasses.forEach((controllerClass) => {
+        const controller = new controllerClass();
+        this.registerBootstrapController(controller);
+        this.bootstrapLogger.info(
+          `Auto-registered bootstrap controller: ${controllerClass.name}`
         );
       });
     });
@@ -273,6 +396,17 @@ export class Bot {
             senderName || 'Unknown',
             logMessage
           );
+
+          // Add context to all schedule tasks for batch processing
+          const batchControllers = getBatchControllers();
+          for (const [eventType, controllerClasses] of batchControllers) {
+            for (const controllerClass of controllerClasses) {
+              const scheduleMethods = getScheduleMethods(new controllerClass());
+              for (const { scheduleId } of scheduleMethods) {
+                addContextToSchedule(scheduleId, context);
+              }
+            }
+          }
 
           // Execute all OnMessage handlers first
           const messageHandlers = getMessageHandlers(controller);
@@ -536,6 +670,35 @@ export class Bot {
    * Start the bot and connect to Iris server
    */
   async run(): Promise<void> {
+    // Run bootstrap handlers first
+    try {
+      this.logger.info('Running bootstrap handlers...');
+      await this.batchScheduler.runBootstrap();
+    } catch (error) {
+      this.logger.error('Bootstrap error:', error);
+    }
+
+    // Start batch scheduler
+    this.batchScheduler.start();
+    this.logger.info('Batch scheduler started');
+
+    // Set up scheduled message handler
+    this.batchScheduler.onScheduledMessage(
+      async (scheduledMessage: ScheduledMessage) => {
+        try {
+          await this.api.reply(
+            scheduledMessage.roomId,
+            scheduledMessage.message
+          );
+          this.logger.info(
+            `Sent scheduled message to room ${scheduledMessage.roomId}: ${scheduledMessage.message}`
+          );
+        } catch (error) {
+          this.logger.error('Failed to send scheduled message:', error);
+        }
+      }
+    );
+
     while (true) {
       try {
         await this.connect();
@@ -553,6 +716,7 @@ export class Bot {
 
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
           this.logger.error('Maximum reconnect attempts reached. Stopping.');
+          this.batchScheduler.stop();
           throw error;
         }
 
@@ -761,6 +925,9 @@ export class Bot {
    * Stop the bot
    */
   stop(): void {
+    // Stop batch scheduler
+    this.batchScheduler.stop();
+
     if (this.ws) {
       this.ws.close();
     }

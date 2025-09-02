@@ -5,6 +5,7 @@
 // Main classes
 export { Bot } from './services/Bot';
 export { IrisAPI } from './services/IrisAPI';
+export { BatchScheduler } from './services/BatchScheduler';
 export { Logger, defaultLogger } from './utils/logger';
 export {
   KakaoLink,
@@ -89,6 +90,12 @@ export {
   FeedController,
   ErrorController,
   UnknownController,
+  // Batch and Bootstrap decorators
+  BatchController,
+  BootstrapController,
+  Schedule,
+  ScheduleMessage,
+  Bootstrap,
   // Function decorators (backward compatibility)
   hasParam,
   isReply,
@@ -98,6 +105,13 @@ export {
   // Utility functions
   getRegisteredCommands,
   getRegisteredControllers,
+  getBatchControllers,
+  getBootstrapControllers,
+  getScheduleMethods,
+  getScheduleMessageMethods,
+  getBootstrapMethods,
+  addContextToSchedule,
+  scheduleMessage,
   clearUserThrottle,
   clearAllThrottle,
 } from './decorators';
@@ -110,7 +124,7 @@ export { Config } from './utils/config';
 export type { EventHandler, ErrorHandler, BotOptions } from './services/Bot';
 
 // Version
-export const version = '1.6.17';
+export const version = '1.6.18';
 export const irispy_client_version = '0.1.6';
 
 // Default export is the Bot class for convenience
