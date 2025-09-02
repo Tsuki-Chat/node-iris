@@ -233,15 +233,31 @@ export class Bot {
   registerBatchController(controller: any): void {
     // Register schedule methods
     const scheduleMethods = getScheduleMethods(controller);
-    for (const { method, scheduleId, interval } of scheduleMethods) {
-      this.batchScheduler.registerScheduleTask(
-        scheduleId,
-        interval,
-        method as (contexts: ChatContext[]) => Promise<void>
-      );
-      this.bootstrapLogger.info(
-        `Registered schedule task: ${scheduleId} (${interval}ms)`
-      );
+    for (const {
+      method,
+      scheduleId,
+      interval,
+      cronExpression,
+    } of scheduleMethods) {
+      if (interval) {
+        this.batchScheduler.registerScheduleTask(
+          scheduleId,
+          interval,
+          method as (contexts: ChatContext[]) => Promise<void>
+        );
+        this.bootstrapLogger.info(
+          `Registered schedule task: ${scheduleId} (${interval}ms)`
+        );
+      } else if (cronExpression) {
+        this.batchScheduler.registerCronTask(
+          scheduleId,
+          cronExpression,
+          method as (contexts: ChatContext[]) => Promise<void>
+        );
+        this.bootstrapLogger.info(
+          `Registered cron task: ${scheduleId} (${cronExpression})`
+        );
+      }
     }
 
     // Register schedule message methods

@@ -4,11 +4,22 @@
 
 import { EventEmitter } from 'events';
 import { ChatContext } from '../types/models';
+import logger from '../utils/logger';
+import * as cron from 'node-cron';
+
+interface ScheduledTask {
+  id: string;
+  interval?: NodeJS.Timeout;
+  cronJob?: cron.ScheduledTask;
+  chatContexts: ChatContext[];
+}
 import { Logger } from '../utils/logger';
 
 export interface ScheduleTask {
   id: string;
-  interval: number;
+  interval?: number;
+  cronExpression?: string;
+  cronJob?: cron.ScheduledTask;
   handler: (contexts: ChatContext[]) => Promise<void>;
   lastRun: number;
   contexts: ChatContext[];
@@ -31,7 +42,7 @@ export interface BootstrapHandler {
 
 export class BatchScheduler {
   private static instance: BatchScheduler | null = null;
-  
+
   private scheduleTasks = new Map<string, ScheduleTask>();
   private scheduledMessages = new Map<string, ScheduledMessage>();
   private bootstrapHandlers: BootstrapHandler[] = [];
@@ -53,7 +64,7 @@ export class BatchScheduler {
   }
 
   /**
-   * 스케줄 태스크 등록
+   * 스케줄 태스크 등록 (인터벌 기반)
    */
   registerScheduleTask(
     id: string,
@@ -70,7 +81,50 @@ export class BatchScheduler {
     };
 
     this.scheduleTasks.set(id, task);
-    this.logger.info(`Registered schedule task: ${id} (interval: ${interval}ms)`);
+    this.logger.info(
+      `Registered schedule task: ${id} (interval: ${interval}ms)`
+    );
+  }
+
+  /**
+   * 스케줄 태스크 등록 (cron 기반)
+   */
+  registerCronTask(
+    id: string,
+    cronExpression: string,
+    handler: (contexts: ChatContext[]) => Promise<void>
+  ): void {
+    const task: ScheduleTask = {
+      id,
+      cronExpression,
+      handler,
+      lastRun: Date.now(),
+      contexts: [],
+      isActive: true,
+    };
+
+    // cron 작업 생성 (바로 시작하지 않음)
+    task.cronJob = cron.schedule(cronExpression, async () => {
+      if (!task.isActive) return;
+
+      if (task.contexts.length > 0) {
+        try {
+          this.logger.debug(
+            `Executing cron task: ${id} with ${task.contexts.length} contexts`
+          );
+          await task.handler([...task.contexts]);
+          task.contexts = []; // 처리 후 컨텍스트 초기화
+        } catch (error) {
+          this.logger.error(`Cron task error for ${id}:`, error);
+        }
+      }
+      task.lastRun = Date.now();
+    });
+
+    this.scheduleTasks.set(id, task);
+    this.logger.info(
+      `Registered cron task: ${id} (expression: ${cronExpression})`
+    );
   }
 
   /**
@@ -80,7 +134,9 @@ export class BatchScheduler {
     const task = this.scheduleTasks.get(scheduleId);
     if (task) {
       task.contexts.push(context);
-      this.logger.debug(`Added context to schedule ${scheduleId}. Total contexts: ${task.contexts.length}`);
+      this.logger.debug(
+        `Added context to schedule ${scheduleId}. Total contexts: ${task.contexts.length}`
+      );
     } else {
       this.logger.warn(`Schedule task not found: ${scheduleId}`);
     }
@@ -106,34 +162,42 @@ export class BatchScheduler {
     };
 
     this.scheduledMessages.set(id, scheduledMessage);
-    this.logger.info(`Scheduled message: ${id} for room ${roomId} at ${new Date(scheduledTime).toISOString()}`);
+    this.logger.info(
+      `Scheduled message: ${id} for room ${roomId} at ${new Date(scheduledTime).toISOString()}`
+    );
   }
 
   /**
    * Bootstrap 핸들러 등록
    */
-  registerBootstrapHandler(handler: () => Promise<void>, priority: number = 0): void {
+  registerBootstrapHandler(
+    handler: () => Promise<void>,
+    priority: number = 0
+  ): void {
     this.bootstrapHandlers.push({ handler, priority });
     // 우선순위순으로 정렬 (낮은 숫자가 먼저 실행)
     this.bootstrapHandlers.sort((a, b) => a.priority - b.priority);
-    this.logger.info(`Registered bootstrap handler with priority ${priority}`);
   }
 
   /**
    * Bootstrap 핸들러들 실행
    */
   async runBootstrap(): Promise<void> {
-    this.logger.info(`Running ${this.bootstrapHandlers.length} bootstrap handlers...`);
-    
+    this.logger.info(
+      `Running ${this.bootstrapHandlers.length} bootstrap handlers...`
+    );
+
     for (const { handler, priority } of this.bootstrapHandlers) {
       try {
-        this.logger.debug(`Executing bootstrap handler with priority ${priority}`);
+        this.logger.debug(
+          `Executing bootstrap handler with priority ${priority}`
+        );
         await handler();
       } catch (error) {
         this.logger.error('Bootstrap handler error:', error);
       }
     }
-    
+
     this.logger.info('Bootstrap completed');
   }
 
@@ -150,6 +214,13 @@ export class BatchScheduler {
     this.timer = setInterval(() => {
       this.tick();
     }, this.tickInterval);
+
+    // cron 작업들 시작
+    for (const [id, task] of this.scheduleTasks) {
+      if (task.cronJob && task.isActive) {
+        task.cronJob.start();
+      }
+    }
 
     this.logger.info('Batch scheduler started');
   }
@@ -168,6 +239,13 @@ export class BatchScheduler {
       this.timer = undefined;
     }
 
+    // cron 작업들 중지
+    for (const [id, task] of this.scheduleTasks) {
+      if (task.cronJob) {
+        task.cronJob.stop();
+      }
+    }
+
     this.logger.info('Batch scheduler stopped');
   }
 
@@ -177,14 +255,16 @@ export class BatchScheduler {
   private async tick(): Promise<void> {
     const now = Date.now();
 
-    // 스케줄 태스크 처리
+    // 스케줄 태스크 처리 (인터벌 기반만)
     for (const [id, task] of this.scheduleTasks) {
-      if (!task.isActive) continue;
+      if (!task.isActive || !task.interval) continue; // cron 태스크는 건너뛰기
 
       if (now - task.lastRun >= task.interval) {
         if (task.contexts.length > 0) {
           try {
-            this.logger.debug(`Executing schedule task: ${id} with ${task.contexts.length} contexts`);
+            this.logger.debug(
+              `Executing schedule task: ${id} with ${task.contexts.length} contexts`
+            );
             await task.handler([...task.contexts]);
             task.contexts = []; // 처리 후 컨텍스트 초기화
           } catch (error) {
@@ -211,9 +291,12 @@ export class BatchScheduler {
     }
 
     // 처리된 메시지 정리 (1시간 후)
-    const oneHourAgo = now - (60 * 60 * 1000);
+    const oneHourAgo = now - 60 * 60 * 1000;
     for (const [id, scheduledMessage] of this.scheduledMessages) {
-      if (scheduledMessage.isProcessed && scheduledMessage.scheduledTime < oneHourAgo) {
+      if (
+        scheduledMessage.isProcessed &&
+        scheduledMessage.scheduledTime < oneHourAgo
+      ) {
         this.scheduledMessages.delete(id);
       }
     }
@@ -226,6 +309,9 @@ export class BatchScheduler {
     const task = this.scheduleTasks.get(id);
     if (task) {
       task.isActive = false;
+      if (task.cronJob) {
+        task.cronJob.stop();
+      }
       this.logger.info(`Disabled schedule task: ${id}`);
     }
   }
@@ -237,6 +323,9 @@ export class BatchScheduler {
     const task = this.scheduleTasks.get(id);
     if (task) {
       task.isActive = true;
+      if (task.cronJob && this.isRunning) {
+        task.cronJob.start();
+      }
       this.logger.info(`Enabled schedule task: ${id}`);
     }
   }

@@ -124,7 +124,7 @@ export { Config } from './utils/config';
 export type { EventHandler, ErrorHandler, BotOptions } from './services/Bot';
 
 // Version
-export const version = '1.6.18';
+export const version = '1.6.19';
 export const irispy_client_version = '0.1.6';
 
 // Default export is the Bot class for convenience

@@ -711,15 +711,18 @@ export function isCommandMatch(
 
 /**
  * Decorator for throttling commands (rate limiting)
+ * @param maxCalls - 최대 호출 횟수
+ * @param windowMs - 시간 창 (밀리초)
+ * @param callback - 제한 시 실행될 콜백 함수
  */
 export function Throttle(
   maxCalls: number,
-  windowSeconds: number,
+  windowMs: number,
   callback?: (
     context: ChatContext,
     maxCalls: number,
     windowMs: number,
-    secondsUntilNext: number
+    msUntilNext: number
   ) => Promise<void>
 ) {
   return function (
@@ -728,7 +731,6 @@ export function Throttle(
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
-    const windowMs = windowSeconds * 1000;
 
     descriptor.value = async function (context: ChatContext) {
       const userId = context.sender.id;
@@ -751,16 +753,12 @@ export function Throttle(
         // Calculate next available time (oldest call + window)
         const oldestCall = Math.min(...validCalls);
         const nextAvailableTime = oldestCall + windowMs;
-        const secondsUntilNext = Math.ceil((nextAvailableTime - now) / 1000);
+        const msUntilNext = nextAvailableTime - now;
         if (callback) {
-          await callback(
-            context,
-            maxCalls,
-            Math.floor(windowMs / 1000),
-            secondsUntilNext
-          );
+          await callback(context, maxCalls, windowMs, msUntilNext);
           return;
         } else {
+          const secondsUntilNext = Math.ceil(msUntilNext / 1000);
           await context.reply(
             `⏱️ 명령어 사용 제한: ${windowMs / 1000}초 내에 최대 ${maxCalls}번만 사용 가능합니다.\n 다음 사용 가능 시간: ${secondsUntilNext}초 후`
           );
@@ -1049,12 +1047,12 @@ export function BatchController<T extends { new (...args: any[]): {} }>(
   constructor: T
 ) {
   registerController('batch', constructor);
-  
+
   // Also register in batch controller registry
   const existing = batchControllerRegistry.get('batch') || [];
   existing.push(constructor);
   batchControllerRegistry.set('batch', existing);
-  
+
   return constructor;
 }
 
@@ -1065,21 +1063,21 @@ export function BootstrapController<T extends { new (...args: any[]): {} }>(
   constructor: T
 ) {
   registerController('bootstrap', constructor);
-  
+
   // Also register in bootstrap controller registry
   const existing = bootstrapControllerRegistry.get('bootstrap') || [];
   existing.push(constructor);
   bootstrapControllerRegistry.set('bootstrap', existing);
-  
+
   return constructor;
 }
 
 /**
- * Schedule decorator for batch processing
- * @param interval - 실행 간격 (밀리초)
+ * Schedule decorator for batch processing at intervals or using cron expressions
+ * @param intervalOrCron - 실행 간격(밀리초) 또는 cron 표현식
  * @param scheduleId - 스케줄 ID (선택사항, 메서드명을 기본값으로 사용)
  */
-export function Schedule(interval: number, scheduleId?: string) {
+export function Schedule(intervalOrCron: number | string, scheduleId?: string) {
   return function (
     target: any,
     propertyKey: string,
@@ -1087,7 +1085,7 @@ export function Schedule(interval: number, scheduleId?: string) {
   ) {
     const originalMethod = descriptor.value;
     const id = scheduleId || `${target.constructor.name}.${propertyKey}`;
-    
+
     // 메타데이터 저장 (실제 등록은 Bot에서 수행)
     const metadata = decoratorMetadata.get(originalMethod) || {
       commands: [],
@@ -1095,8 +1093,13 @@ export function Schedule(interval: number, scheduleId?: string) {
     };
     metadata.hasDecorators = true;
     (metadata as any).scheduleId = id;
-    (metadata as any).scheduleInterval = interval;
-    
+
+    if (typeof intervalOrCron === 'number') {
+      (metadata as any).scheduleInterval = intervalOrCron;
+    } else {
+      (metadata as any).scheduleCron = intervalOrCron;
+    }
+
     // Set metadata as function property
     (originalMethod as any).__decoratorMetadata = metadata;
     decoratorMetadata.set(originalMethod, metadata);
@@ -1114,7 +1117,7 @@ export function ScheduleMessage(key: string) {
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
-    
+
     // 메타데이터 저장
     const metadata = decoratorMetadata.get(originalMethod) || {
       commands: [],
@@ -1122,7 +1125,7 @@ export function ScheduleMessage(key: string) {
     };
     metadata.hasDecorators = true;
     (metadata as any).scheduleMessageKey = key;
-    
+
     // Set metadata as function property
     (originalMethod as any).__decoratorMetadata = metadata;
     decoratorMetadata.set(originalMethod, metadata);
@@ -1140,7 +1143,7 @@ export function Bootstrap(priority: number = 0) {
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
-    
+
     // 메타데이터 저장 (실제 등록은 Bot에서 수행)
     const metadata = decoratorMetadata.get(originalMethod) || {
       commands: [],
@@ -1148,7 +1151,7 @@ export function Bootstrap(priority: number = 0) {
     };
     metadata.hasDecorators = true;
     (metadata as any).bootstrapPriority = priority;
-    
+
     // Set metadata as function property
     (originalMethod as any).__decoratorMetadata = metadata;
     decoratorMetadata.set(originalMethod, metadata);
@@ -1175,14 +1178,16 @@ export function getBootstrapControllers(): Map<string, any[]> {
 export function getScheduleMethods(controller: any): Array<{
   method: Function;
   scheduleId: string;
-  interval: number;
+  interval?: number;
+  cronExpression?: string;
 }> {
   const methods: Array<{
     method: Function;
     scheduleId: string;
-    interval: number;
+    interval?: number;
+    cronExpression?: string;
   }> = [];
-  
+
   const prototype = Object.getPrototypeOf(controller);
   const methodNames = Object.getOwnPropertyNames(prototype);
 
@@ -1197,6 +1202,7 @@ export function getScheduleMethods(controller: any): Array<{
           method: method.bind(controller),
           scheduleId: (metadata as any).scheduleId,
           interval: (metadata as any).scheduleInterval,
+          cronExpression: (metadata as any).scheduleCron,
         });
       }
     }
@@ -1216,7 +1222,7 @@ export function getScheduleMessageMethods(controller: any): Array<{
     method: Function;
     key: string;
   }> = [];
-  
+
   const prototype = Object.getPrototypeOf(controller);
   const methodNames = Object.getOwnPropertyNames(prototype);
 
@@ -1249,7 +1255,7 @@ export function getBootstrapMethods(controller: any): Array<{
     method: Function;
     priority: number;
   }> = [];
-  
+
   const prototype = Object.getPrototypeOf(controller);
   const methodNames = Object.getOwnPropertyNames(prototype);
 
@@ -1274,7 +1280,10 @@ export function getBootstrapMethods(controller: any): Array<{
 /**
  * Helper function to add context to schedule
  */
-export function addContextToSchedule(scheduleId: string, context: ChatContext): void {
+export function addContextToSchedule(
+  scheduleId: string,
+  context: ChatContext
+): void {
   const scheduler = BatchScheduler.getInstance();
   scheduler.addContextToSchedule(scheduleId, context);
 }
