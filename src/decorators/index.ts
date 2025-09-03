@@ -1159,6 +1159,35 @@ export function Bootstrap(priority: number = 0) {
 }
 
 /**
+ * Room decorator for restricting execution to specific rooms
+ * @param roomIds - 허용된 방 ID 배열
+ */
+export function Room(roomIds: string[]) {
+  return function (
+    target: any,
+    propertyKey?: string,
+    descriptor?: PropertyDescriptor
+  ) {
+    if (propertyKey && descriptor) {
+      // 메서드 레벨 데코레이터
+      const originalMethod = descriptor.value;
+
+      const metadata = decoratorMetadata.get(originalMethod) || {
+        commands: [],
+        hasDecorators: false,
+      };
+      metadata.hasDecorators = true;
+      (metadata as any).allowedRooms = roomIds;
+
+      decoratorMetadata.set(originalMethod, metadata);
+    } else {
+      // 클래스 레벨 데코레이터
+      (target as any).__allowedRooms = roomIds;
+    }
+  };
+}
+
+/**
  * Helper function to get batch controllers
  */
 export function getBatchControllers(): Map<string, any[]> {

@@ -30,6 +30,7 @@ import {
   getScheduleMessageMethods,
   getBootstrapMethods,
   addContextToSchedule,
+  decoratorMetadata,
 } from '../decorators';
 import { BatchScheduler, ScheduledMessage } from './BatchScheduler';
 import { Logger } from '../utils/logger';
@@ -455,6 +456,13 @@ export class Bot {
 
               if (method && typeof method === 'function') {
                 try {
+                  // Check room restrictions
+                  if (
+                    !this.isRoomAllowed(controller, method, context.room.id)
+                  ) {
+                    continue; // Skip this command if room is not allowed
+                  }
+
                   // Update context with command-specific parameter
                   const commandParam =
                     message.getParameterForCommand(fullCommand);
@@ -952,5 +960,31 @@ export class Bot {
     if (Bot.instance === this) {
       Bot.instance = null;
     }
+  }
+
+  /**
+   * Check if the current room is allowed for the controller/method
+   */
+  private isRoomAllowed(
+    controller: any,
+    method: Function,
+    roomId: string
+  ): boolean {
+    // Check method-level room restrictions
+    const methodMetadata = decoratorMetadata.get(method);
+    if (methodMetadata && (methodMetadata as any).allowedRooms) {
+      const allowedRooms = (methodMetadata as any).allowedRooms as string[];
+      return allowedRooms.includes(roomId);
+    }
+
+    // Check class-level room restrictions
+    if ((controller.constructor as any).__allowedRooms) {
+      const allowedRooms = (controller.constructor as any)
+        .__allowedRooms as string[];
+      return allowedRooms.includes(roomId);
+    }
+
+    // No restrictions means allowed
+    return true;
   }
 }
