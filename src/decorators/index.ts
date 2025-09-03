@@ -437,8 +437,17 @@ export function IsReply(
 
 /**
  * Decorator that only executes if user has specific roles
+ * @param allowedRoles - 허용된 역할 배열
+ * @param callback - 권한이 없을 때 실행될 콜백 함수
  */
-export function HasRole(allowedRoles: string[]) {
+export function HasRole(
+  allowedRoles: string[],
+  callback?: (
+    context: ChatContext,
+    allowedRoles: string[],
+    userRole: string | null
+  ) => Promise<void>
+) {
   return function (
     target: any,
     propertyKey: string,
@@ -450,6 +459,11 @@ export function HasRole(allowedRoles: string[]) {
       const userType = await context.sender.getType();
 
       if (!userType || !allowedRoles.includes(userType)) {
+        if (callback) {
+          await callback(context, allowedRoles, userType);
+          return;
+        }
+        // 콜백이 없으면 기존 동작 유지 (아무것도 하지 않음)
         return;
       }
 
