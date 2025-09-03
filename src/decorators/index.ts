@@ -1162,7 +1162,7 @@ export function Bootstrap(priority: number = 0) {
  * Room decorator for restricting execution to specific rooms
  * @param roomIds - 허용된 방 ID 배열
  */
-export function Room(roomIds: string[]) {
+export function AllowedRoom(roomIds: string[]) {
   return function (
     target: any,
     propertyKey?: string,

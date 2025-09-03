@@ -2,8 +2,8 @@
  * TypeScript port of iris.bot.models
  */
 
-import { IIrisAPI } from './interfaces';
 import { Logger } from '../utils/logger';
+import { IIrisAPI } from './interfaces';
 
 export interface IrisRawData {
   [key: string]: any;
@@ -1246,7 +1246,7 @@ export class Avatar {
         this._url = results[0]?.o_profile_image_url || null;
       } else {
         results = await this._api.query(
-          'SELECT original_profile_image_url FROM db2.open_chat_member WHERE user_id = ?',
+          'SELECT original_profile_image_url, enc FROM db2.open_chat_member WHERE user_id = ?',
           [this._id]
         );
         this._url = results[0]?.original_profile_image_url || null;
@@ -1331,13 +1331,13 @@ export class User {
         this._name = results[0]?.nickname || null;
       } else if (BigInt(this.id) < 10000000000n) {
         results = await this._api.query(
-          'SELECT name FROM db2.friends WHERE id = ?',
+          'SELECT name, enc FROM db2.friends WHERE id = ?',
           [this.id]
         );
         this._name = results[0]?.name || null;
       } else {
         results = await this._api.query(
-          'SELECT nickname FROM db2.open_chat_member WHERE user_id = ?',
+          'SELECT nickname, enc FROM db2.open_chat_member WHERE user_id = ?',
           [this.id]
         );
         this._name = results[0]?.nickname || null;
