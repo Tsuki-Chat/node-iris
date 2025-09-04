@@ -3,40 +3,40 @@
  */
 
 // Main classes
+export { BatchScheduler } from './services/BatchScheduler';
 export { Bot } from './services/Bot';
 export { IrisAPI } from './services/IrisAPI';
-export { BatchScheduler } from './services/BatchScheduler';
-export { Logger, defaultLogger } from './utils/logger';
 export {
   KakaoLink,
-  KakaoLinkException,
-  KakaoLinkReceiverNotFoundException,
-  KakaoLinkLoginException,
   KakaoLink2FAException,
+  KakaoLinkException,
+  KakaoLinkLoginException,
+  KakaoLinkReceiverNotFoundException,
   KakaoLinkSendException,
 } from './services/IrisLink';
+export { defaultLogger, Logger } from './utils/logger';
 
 // Alias for compatibility with Python irispy-client module
 export {
   KakaoLink as IrisLink,
-  KakaoLinkException as IrisLinkException,
-  KakaoLinkReceiverNotFoundException as IrisLinkReceiverNotFoundException,
-  KakaoLinkLoginException as IrisLinkLoginException,
   KakaoLink2FAException as IrisLink2FAException,
+  KakaoLinkException as IrisLinkException,
+  KakaoLinkLoginException as IrisLinkLoginException,
+  KakaoLinkReceiverNotFoundException as IrisLinkReceiverNotFoundException,
   KakaoLinkSendException as IrisLinkSendException,
 } from './services/IrisLink';
 
 // Models
 export {
+  Avatar,
+  ChatContext,
+  ChatImage,
+  ErrorContext,
+  IrisRawData,
+  IrisRequest,
   Message,
   Room,
   User,
-  Avatar,
-  ChatImage,
-  ChatContext,
-  ErrorContext,
-  IrisRequest,
-  IrisRawData,
 } from './types/models';
 
 // Controllers
@@ -44,87 +44,88 @@ export { BaseController } from './controllers/BaseController';
 
 // Decorators
 export {
+  addContextToSchedule,
+  AllowedRoom,
+  // Batch and Bootstrap decorators
+  BatchController,
+  Bootstrap,
+  BootstrapController,
+  BotCommand,
+  ChatController,
+  clearAllThrottle,
+  clearUserThrottle,
+  Command,
+  // Controller class decorators
+  ChatController as Controller,
+  decorators,
+  DeleteMemberController,
+  ErrorController,
+  FeedController,
+  getBatchControllers,
+  getBootstrapControllers,
+  getBootstrapMethods,
+  // Utility functions
+  getRegisteredCommands,
+  getRegisteredControllers,
+  getScheduleMessageMethods,
+  getScheduleMethods,
   // Method decorators
   HasParam,
-  IsReply,
-  IsAdmin,
-  IsNotBanned,
+  // Function decorators (backward compatibility)
+  hasParam,
   HasRole,
-  Command,
-  BotCommand,
   HelpCommand,
-  Prefix,
+  IsAdmin,
+  isAdmin,
+  IsNotBanned,
+  isNotBanned,
+  IsReply,
+  isReply,
+  MessageController,
   MethodPrefix,
-  Throttle,
-  // Message type decorators
-  OnMessage,
-  OnNormalMessage,
-  OnFeedMessage,
-  OnPhotoMessage,
-  OnVideoMessage,
+  NewMemberController,
   OnAudioMessage,
+  OnDeleteMessageFeed,
+  OnDemoteManagerFeed,
   OnEmoticonMessage,
-  OnMapMessage,
-  OnProfileMessage,
+  OnFeedMessage,
   OnFileMessage,
-  OnReplyMessage,
-  OnMultiPhotoMessage,
-  OnNewMultiPhotoMessage,
+  OnHandOverHostFeed,
+  OnHideMessageFeed,
   OnImageMessage,
   // Feed type decorators
   OnInviteUserFeed,
   OnLeaveUserFeed,
+  OnMapMessage,
+  // Message type decorators
+  OnMessage,
+  OnMultiPhotoMessage,
+  OnNewMultiPhotoMessage,
+  OnNormalMessage,
   OnOpenChatJoinUserFeed,
   OnOpenChatKickedUserFeed,
+  OnPhotoMessage,
+  OnProfileMessage,
   OnPromoteManagerFeed,
-  OnDemoteManagerFeed,
-  OnDeleteMessageFeed,
-  OnHandOverHostFeed,
-  OnHideMessageFeed,
-  // Controller class decorators
-  ChatController as Controller,
-  ChatController,
-  MessageController,
-  NewMemberController,
-  DeleteMemberController,
-  FeedController,
-  ErrorController,
-  UnknownController,
-  // Batch and Bootstrap decorators
-  BatchController,
-  BootstrapController,
+  OnReplyMessage,
+  OnVideoMessage,
+  Prefix,
   Schedule,
   ScheduleMessage,
-  Bootstrap,
-  // Function decorators (backward compatibility)
-  hasParam,
-  isReply,
-  isAdmin,
-  isNotBanned,
-  decorators,
-  // Utility functions
-  getRegisteredCommands,
-  getRegisteredControllers,
-  getBatchControllers,
-  getBootstrapControllers,
-  getScheduleMethods,
-  getScheduleMessageMethods,
-  getBootstrapMethods,
-  addContextToSchedule,
   scheduleMessage,
-  clearUserThrottle,
-  clearAllThrottle,
+  Throttle,
+  UnknownController,
 } from './decorators';
 
 // Utils
-export { EventEmitter } from './utils/eventEmitter';
 export { Config } from './utils/config';
+export { EventEmitter } from './utils/eventEmitter';
 
 // Types
-export type { EventHandler, ErrorHandler, BotOptions } from './services/Bot';
+export type { BotOptions, ErrorHandler, EventHandler } from './services/Bot';
 
 // Version
-export const version = '1.6.20';
+export const version = '1.6.23';
 export const irispy_client_version = '0.1.6';
 
 // Default export is the Bot class for convenience
