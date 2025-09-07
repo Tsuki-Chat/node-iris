@@ -3,37 +3,38 @@
  */
 
 import WebSocket = require('ws');
-import { EventEmitter } from '../utils/eventEmitter';
-import { IrisAPI } from './IrisAPI';
+import express = require('express');
+import { BaseController } from '../controllers/BaseController';
+import {
+  addContextToSchedule,
+  debugDecoratorMetadata,
+  decoratorMetadata,
+  getBatchControllers,
+  getBootstrapControllers,
+  getBootstrapMethods,
+  getDecoratedMethods,
+  getFullCommand,
+  getMessageHandlers,
+  getRegisteredCommands,
+  getRegisteredControllers,
+  getScheduleMessageMethods,
+  getScheduleMethods,
+  isCommandMatch,
+} from '../decorators';
 import {
   ChatContext,
+  ErrorContext,
+  FeedType,
+  IrisRequest,
   Message,
   Room,
   User,
-  IrisRequest,
-  ErrorContext,
   VField,
-  FeedType,
 } from '../types/models';
-import { BaseController } from '../controllers/BaseController';
-import {
-  getRegisteredControllers,
-  getRegisteredCommands,
-  getMessageHandlers,
-  getDecoratedMethods,
-  debugDecoratorMetadata,
-  getFullCommand,
-  isCommandMatch,
-  getBatchControllers,
-  getBootstrapControllers,
-  getScheduleMethods,
-  getScheduleMessageMethods,
-  getBootstrapMethods,
-  addContextToSchedule,
-  decoratorMetadata,
-} from '../decorators';
-import { BatchScheduler, ScheduledMessage } from './BatchScheduler';
+import { EventEmitter } from '../utils/eventEmitter';
 import { Logger } from '../utils/logger';
+import { BatchScheduler, ScheduledMessage } from './BatchScheduler';
+import { IrisAPI } from './IrisAPI';
 
 export type EventHandler = (context: ChatContext) => void | Promise<void>;
 export type ErrorHandler = (context: ErrorContext) => void | Promise<void>;
@@ -42,6 +43,9 @@ export interface BotOptions {
   maxWorkers?: number;
   saveChatLogs?: boolean;
   autoRegisterControllers?: boolean;
+  httpMode?: boolean; // HTTP 웹훅 모드 활성화
+  webhookPort?: number; // 웹훅 서버 포트 (기본: 3001)
+  webhookPath?: string; // 웹훅 엔드포인트 경로 (기본: /webhook/message)
 }
 
 export class Bot {
@@ -65,6 +69,13 @@ export class Bot {
   private registeredMethods: Function[] = [];
   private batchScheduler: BatchScheduler;
 
+  // HTTP 웹훅 모드 관련 속성
+  private httpMode: boolean;
+  private webhookPort: number;
+  private webhookPath: string;
+  private expressApp?: express.Application;
+  private httpServer?: any;
+
   constructor(name: string, irisUrl: string, options: BotOptions = {}) {
     this.name = name;
     this.emitter = new EventEmitter(options.maxWorkers);
@@ -73,6 +84,11 @@ export class Bot {
 
     // Set static instance
     Bot.instance = this;
+
+    // HTTP 웹훅 모드 설정
+    this.httpMode = options.httpMode || false;
+    this.webhookPort = options.webhookPort || 3001;
+    this.webhookPath = options.webhookPath || '/webhook/message';
 
     // Clean up the URL similar to Python implementation
     this.irisUrl = irisUrl
@@ -429,6 +445,20 @@ export class Bot {
           const messageHandlers = getMessageHandlers(controller);
           for (const handler of messageHandlers) {
             try {
+              // Check room restrictions for OnMessage handlers
+              if (!this.isRoomAllowed(controller, handler, context.room.id)) {
+                this.logger.debug(
+                  `Message handler ${handler.name} blocked by room restrictions`,
+                  {
+                    roomId: context.room.id,
+                    roomName: context.room.name,
+                    handlerName: handler.name,
+                    controllerName: controller.constructor.name,
+                  }
+                );
+                continue; // Skip this handler if room is not allowed
+              }
+
               await handler(context);
             } catch (error) {
               this.logger.error('Error executing OnMessage handler', error);
@@ -460,6 +490,16 @@ export class Bot {
                   if (
                     !this.isRoomAllowed(controller, method, context.room.id)
                   ) {
+                    this.logger.debug(
+                      `Command ${fullCommand} blocked by room restrictions`,
+                      {
+                        roomId: context.room.id,
+                        roomName: context.room.name,
+                        command: fullCommand,
+                        methodName: methodName,
+                        controllerName: controller.constructor.name,
+                      }
+                    );
                     continue; // Skip this command if room is not allowed
                   }
 
@@ -512,6 +552,20 @@ export class Bot {
             const decoratedMethods = getDecoratedMethods(controller);
             for (const method of decoratedMethods) {
               try {
+                // Check room restrictions for each method
+                if (!this.isRoomAllowed(controller, method, context.room.id)) {
+                  this.logger.debug(
+                    `NewMember method ${method.name} blocked by room restrictions`,
+                    {
+                      roomId: context.room.id,
+                      roomName: context.room.name,
+                      methodName: method.name,
+                      controllerName: controller.constructor.name,
+                    }
+                  );
+                  continue; // Skip this method if room is not allowed
+                }
+
                 await method(context);
               } catch (error) {
                 this.logger.error(
@@ -536,6 +590,20 @@ export class Bot {
             const decoratedMethods = getDecoratedMethods(controller);
             for (const method of decoratedMethods) {
               try {
+                // Check room restrictions for each method
+                if (!this.isRoomAllowed(controller, method, context.room.id)) {
+                  this.logger.debug(
+                    `DelMember method ${method.name} blocked by room restrictions`,
+                    {
+                      roomId: context.room.id,
+                      roomName: context.room.name,
+                      methodName: method.name,
+                      controllerName: controller.constructor.name,
+                    }
+                  );
+                  continue; // Skip this method if room is not allowed
+                }
+
                 await method(context);
               } catch (error) {
                 this.logger.error(
@@ -604,6 +672,20 @@ export class Bot {
 
             for (const handler of messageHandlers) {
               try {
+                // Check room restrictions for message handlers
+                if (!this.isRoomAllowed(controller, handler, context.room.id)) {
+                  this.logger.debug(
+                    `Feed message handler ${handler.name} blocked by room restrictions`,
+                    {
+                      roomId: context.room.id,
+                      roomName: context.room.name,
+                      handlerName: handler.name,
+                      controllerName: controller.constructor.name,
+                    }
+                  );
+                  continue; // Skip this handler if room is not allowed
+                }
+
                 this.logger.debug(`Executing message handler: ${handler.name}`);
                 await handler(context);
               } catch (error) {
@@ -619,6 +701,20 @@ export class Bot {
 
             for (const method of decoratedMethods) {
               try {
+                // Check room restrictions for decorated methods
+                if (!this.isRoomAllowed(controller, method, context.room.id)) {
+                  this.logger.debug(
+                    `Feed decorated method ${method.name} blocked by room restrictions`,
+                    {
+                      roomId: context.room.id,
+                      roomName: context.room.name,
+                      methodName: method.name,
+                      controllerName: controller.constructor.name,
+                    }
+                  );
+                  continue; // Skip this method if room is not allowed
+                }
+
                 this.logger.debug(`Executing decorated method: ${method.name}`);
                 await method(context);
               } catch (error) {
@@ -641,6 +737,20 @@ export class Bot {
             const decoratedMethods = getDecoratedMethods(controller);
             for (const method of decoratedMethods) {
               try {
+                // Check room restrictions for each method
+                if (!this.isRoomAllowed(controller, method, context.room.id)) {
+                  this.logger.debug(
+                    `Unknown method ${method.name} blocked by room restrictions`,
+                    {
+                      roomId: context.room.id,
+                      roomName: context.room.name,
+                      methodName: method.name,
+                      controllerName: controller.constructor.name,
+                    }
+                  );
+                  continue; // Skip this method if room is not allowed
+                }
+
                 await method(context);
               } catch (error) {
                 this.logger.error(
@@ -662,6 +772,20 @@ export class Bot {
             const decoratedMethods = getDecoratedMethods(controller);
             for (const method of decoratedMethods) {
               try {
+                // Check room restrictions for each method
+                if (!this.isRoomAllowed(controller, method, context.room.id)) {
+                  this.logger.debug(
+                    `Chat method ${method.name} blocked by room restrictions`,
+                    {
+                      roomId: context.room.id,
+                      roomName: context.room.name,
+                      methodName: method.name,
+                      controllerName: controller.constructor.name,
+                    }
+                  );
+                  continue; // Skip this method if room is not allowed
+                }
+
                 await method(context);
               } catch (error) {
                 this.logger.error(
@@ -688,6 +812,97 @@ export class Bot {
         }
         break;
     }
+  }
+
+  /**
+   * Set up HTTP webhook server
+   */
+  private setupWebhookServer(): void {
+    if (!this.httpMode) return;
+
+    this.expressApp = express();
+
+    // Body parser middleware with increased limits for large messages
+    this.expressApp.use(
+      express.json({
+        limit: '50mb',
+        type: ['application/json', 'text/plain'],
+      })
+    );
+    this.expressApp.use(
+      express.urlencoded({
+        extended: true,
+        limit: '50mb',
+        parameterLimit: 50000,
+      })
+    );
+
+    // Health check endpoint
+    this.expressApp.get('/health', (req, res) => {
+      res.json({ status: 'OK', mode: 'webhook', bot: this.name });
+    });
+
+    // Webhook endpoint
+    this.expressApp.post(this.webhookPath, async (req, res) => {
+      try {
+        const requestData = req.body;
+
+        this.logger.debug('Webhook received data:', requestData);
+
+        if (!requestData) {
+          res.status(400).json({ error: 'No data received' });
+          return;
+        }
+
+        // Convert webhook data to IrisRequest format
+        let irisRequest: IrisRequest;
+
+        if (requestData.json) {
+          // If data has 'json' field, use it as raw data
+          irisRequest = {
+            room: requestData.room,
+            sender: requestData.sender,
+            raw: requestData.json,
+          };
+        } else if (requestData.raw) {
+          // If data already has 'raw' field (standard IrisRequest format)
+          irisRequest = requestData as IrisRequest;
+        } else {
+          // Try to use the entire request body as raw data
+          irisRequest = {
+            room: requestData.room || 'Unknown',
+            sender: requestData.sender || 'Unknown',
+            raw: requestData,
+          };
+        }
+
+        this.logger.debug('Processed IrisRequest:', {
+          room: irisRequest.room,
+          sender: irisRequest.sender,
+          rawKeys: Object.keys(irisRequest.raw),
+        });
+
+        // Process the request like WebSocket message
+        await this.processIrisRequest(irisRequest);
+
+        res.json({ status: 'OK', processed: true });
+      } catch (error) {
+        this.logger.error('Webhook processing error:', error);
+
+        res.status(500).json({
+          error: 'Internal server error',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    });
+
+    // Start HTTP server
+    this.httpServer = this.expressApp.listen(this.webhookPort, () => {
+      this.logger.info(
+        `HTTP webhook server started on port ${this.webhookPort}`
+      );
+      this.logger.info(`Webhook endpoint: POST ${this.webhookPath}`);
+    });
   }
 
   /**
@@ -723,6 +938,31 @@ export class Bot {
       }
     );
 
+    // HTTP 웹훅 모드인 경우
+    if (this.httpMode) {
+      this.logger.info('Starting in HTTP webhook mode');
+
+      // Get bot info
+      try {
+        const info = await this.api.getInfo();
+        this.botId = String(info.bot_id);
+        this.logger.info(`Bot initialized with ID: ${this.botId}`);
+      } catch (error) {
+        this.logger.error('Failed to get bot info:', error);
+        throw error;
+      }
+
+      // Setup webhook server
+      this.setupWebhookServer();
+
+      // Keep process alive
+      return new Promise(() => {
+        // Process will stay alive due to HTTP server
+      });
+    }
+
+    // WebSocket 모드 (기본)
+    this.logger.info('Starting in WebSocket mode');
     while (true) {
       try {
         await this.connect();
@@ -952,8 +1192,16 @@ export class Bot {
     // Stop batch scheduler
     this.batchScheduler.stop();
 
+    // Close WebSocket connection if exists
     if (this.ws) {
       this.ws.close();
+    }
+
+    // Close HTTP server if exists
+    if (this.httpServer) {
+      this.httpServer.close(() => {
+        this.logger.info('HTTP webhook server stopped');
+      });
     }
 
     // Clear static instance
@@ -970,21 +1218,77 @@ export class Bot {
     method: Function,
     roomId: string
   ): boolean {
-    // Check method-level room restrictions
+    // Check method-level room restrictions (multiple ways for reliability)
+
+    // 1. Check direct method property
+    if ((method as any).__allowedRooms) {
+      const allowedRooms = (method as any).__allowedRooms as string[];
+      const isAllowed = allowedRooms.includes(roomId);
+      this.logger.debug(
+        `Method-level room check (direct property): ${isAllowed}`,
+        {
+          roomId,
+          allowedRooms,
+          methodName: method.name,
+        }
+      );
+      return isAllowed;
+    }
+
+    // 2. Check decorator metadata map
     const methodMetadata = decoratorMetadata.get(method);
     if (methodMetadata && (methodMetadata as any).allowedRooms) {
       const allowedRooms = (methodMetadata as any).allowedRooms as string[];
-      return allowedRooms.includes(roomId);
+      const isAllowed = allowedRooms.includes(roomId);
+      this.logger.debug(
+        `Method-level room check (metadata map): ${isAllowed}`,
+        {
+          roomId,
+          allowedRooms,
+          methodName: method.name,
+        }
+      );
+      return isAllowed;
+    }
+
+    // 3. Check method's decorator metadata property
+    if (
+      (method as any).__decoratorMetadata &&
+      (method as any).__decoratorMetadata.allowedRooms
+    ) {
+      const allowedRooms = (method as any).__decoratorMetadata
+        .allowedRooms as string[];
+      const isAllowed = allowedRooms.includes(roomId);
+      this.logger.debug(
+        `Method-level room check (decorator metadata property): ${isAllowed}`,
+        {
+          roomId,
+          allowedRooms,
+          methodName: method.name,
+        }
+      );
+      return isAllowed;
     }
 
     // Check class-level room restrictions
     if ((controller.constructor as any).__allowedRooms) {
       const allowedRooms = (controller.constructor as any)
         .__allowedRooms as string[];
-      return allowedRooms.includes(roomId);
+      const isAllowed = allowedRooms.includes(roomId);
+      this.logger.debug(`Class-level room check: ${isAllowed}`, {
+        roomId,
+        allowedRooms,
+        controllerName: controller.constructor.name,
+      });
+      return isAllowed;
     }
 
     // No restrictions means allowed
+    this.logger.debug(`No room restrictions found, allowing access`, {
+      roomId,
+      methodName: method.name,
+      controllerName: controller.constructor.name,
+    });
     return true;
   }
 }
