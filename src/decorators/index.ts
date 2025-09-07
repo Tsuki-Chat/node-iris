@@ -2,8 +2,8 @@
  * TypeScript port of iris.decorators with enhanced functionality
  */
 
-import { ChatContext } from '../types/models';
 import { BatchScheduler } from '../services/BatchScheduler';
+import { ChatContext } from '../types/models';
 
 export type DecoratorHandler = (context: ChatContext) => void | Promise<void>;
 
@@ -543,7 +543,10 @@ export function BotCommand(commands: string | string[], description?: string) {
     // Add all commands to metadata
     metadata.commands.push(...commandArray);
     metadata.hasDecorators = true;
+
+    // 여러 방식으로 메타데이터 저장 (AllowedRoom과 일관성 유지)
     decoratorMetadata.set(originalMethod, metadata);
+    (originalMethod as any).__decoratorMetadata = metadata;
 
     // Register each command individually for help system and execution
     for (const command of commandArray) {
@@ -1186,6 +1189,9 @@ export function AllowedRoom(roomIds: string[]) {
       // 메서드 레벨 데코레이터
       const originalMethod = descriptor.value;
 
+      // 메서드에 직접 속성 설정 (더 안정적)
+      (originalMethod as any).__allowedRooms = roomIds;
+
       const metadata = decoratorMetadata.get(originalMethod) || {
         commands: [],
         hasDecorators: false,
@@ -1193,7 +1199,9 @@ export function AllowedRoom(roomIds: string[]) {
       metadata.hasDecorators = true;
       (metadata as any).allowedRooms = roomIds;
 
+      // 여러 방식으로 메타데이터 저장 (안정성 확보)
       decoratorMetadata.set(originalMethod, metadata);
+      (originalMethod as any).__decoratorMetadata = metadata;
     } else {
       // 클래스 레벨 데코레이터
       (target as any).__allowedRooms = roomIds;
@@ -1213,6 +1221,71 @@ export function getBatchControllers(): Map<string, any[]> {
  */
 export function getBootstrapControllers(): Map<string, any[]> {
   return bootstrapControllerRegistry;
+}
+
+/**
+ * Debug function to check room restrictions for a method
+ */
+export function debugRoomRestrictions(
+  method: Function,
+  controllerConstructor?: Function
+): void {
+  const winston = require('winston');
+  const debugLogger = winston.createLogger({
+    level: 'debug',
+    format: winston.format.combine(
+      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+      winston.format.colorize(),
+      winston.format.printf(({ timestamp, level, message }: any) => {
+        return `[${timestamp}] [${level}] [RoomDebug] ${message}`;
+      })
+    ),
+    transports: [new winston.transports.Console()],
+  });
+
+  debugLogger.debug(`=== Room Restrictions Debug for ${method.name} ===`);
+
+  // Check direct property
+  if ((method as any).__allowedRooms) {
+    debugLogger.debug(
+      `Direct property: ${JSON.stringify((method as any).__allowedRooms)}`
+    );
+  } else {
+    debugLogger.debug('No direct property found');
+  }
+
+  // Check metadata map
+  const metadata = decoratorMetadata.get(method);
+  if (metadata && (metadata as any).allowedRooms) {
+    debugLogger.debug(
+      `Metadata map: ${JSON.stringify((metadata as any).allowedRooms)}`
+    );
+  } else {
+    debugLogger.debug('No metadata map entry found');
+  }
+
+  // Check decorator metadata property
+  if (
+    (method as any).__decoratorMetadata &&
+    (method as any).__decoratorMetadata.allowedRooms
+  ) {
+    debugLogger.debug(
+      `Decorator metadata property: ${JSON.stringify((method as any).__decoratorMetadata.allowedRooms)}`
+    );
+  } else {
+    debugLogger.debug('No decorator metadata property found');
+  }
+
+  // Check class-level restrictions if constructor provided
+  if (controllerConstructor && (controllerConstructor as any).__allowedRooms) {
+    debugLogger.debug(
+      `Class-level restrictions: ${JSON.stringify((controllerConstructor as any).__allowedRooms)}`
+    );
+  } else if (controllerConstructor) {
+    debugLogger.debug('No class-level restrictions found');
+  }
+
+  debugLogger.debug('=== End Room Restrictions Debug ===');
 }
 
 /**

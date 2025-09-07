@@ -57,6 +57,8 @@ export {
   Command,
   // Controller class decorators
   ChatController as Controller,
+  debugDecoratorMetadata,
+  debugRoomRestrictions,
   decorators,
   DeleteMemberController,
   ErrorController,
@@ -125,7 +127,7 @@ export { EventEmitter } from './utils/eventEmitter';
 export type { BotOptions, ErrorHandler, EventHandler } from './services/Bot';
 
 // Version
-export const version = '1.6.23';
+export const version = '1.6.25';
 export const irispy_client_version = '0.1.6';
 
 // Default export is the Bot class for convenience
