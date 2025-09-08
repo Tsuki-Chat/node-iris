@@ -14,7 +14,7 @@ export {
   KakaoLinkReceiverNotFoundException,
   KakaoLinkSendException,
 } from './services/IrisLink';
-export { defaultLogger, Logger } from './utils/logger';
+export { defaultLogger, Logger, LogLevel } from './utils/logger';
 
 // Alias for compatibility with Python irispy-client module
 export {
@@ -127,7 +127,7 @@ export { EventEmitter } from './utils/eventEmitter';
 export type { BotOptions, ErrorHandler, EventHandler } from './services/Bot';
 
 // Version
-export const version = '1.6.25';
+export const version = '1.6.26';
 export const irispy_client_version = '0.1.6';
 
 // Default export is the Bot class for convenience

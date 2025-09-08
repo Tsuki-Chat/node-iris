@@ -2,6 +2,7 @@
  * TypeScript port of iris.bot.models
  */
 
+import { safeJsonParseWithReviver } from '../utils';
 import { Logger } from '../utils/logger';
 import { IIrisAPI } from './interfaces';
 
@@ -28,7 +29,7 @@ export interface VField {
 }
 
 export interface FeedUser {
-  userId: string | number;
+  userId: string;
   nickName: string;
 }
 
@@ -45,7 +46,7 @@ export interface InviteUserFeedType extends FeedType {
 export interface LeaveUserFeedType extends FeedType {
   feedType: 2;
   member: FeedUser;
-  hidden: boolean;
+  hidden?: boolean;
   kicked?: boolean;
 }
 
@@ -121,8 +122,11 @@ function safeParseMessage(message: string): ParsedMessageType {
     return message || '';
   }
 
+  const logger = new Logger('Models: safeParseMessage');
+
   try {
-    const parsed = JSON.parse(message);
+    // JSON reviver 함수를 사용하여 큰 정수를 문자열로 보존
+    const parsed = safeJsonParseWithReviver(message);
 
     // feedType이 존재하고 숫자인지 확인
     if (
@@ -143,7 +147,7 @@ function safeParseMessage(message: string): ParsedMessageType {
       }
 
       // 지원하지 않는 feedType이지만 유효한 JSON인 경우 원본 반환
-      console.warn(`Unsupported feedType: ${feedType}`);
+      logger.warn(`Unsupported feedType: ${feedType}`);
       return message;
     }
 
@@ -173,7 +177,7 @@ function validateFeedStructure(parsed: any, feedType: number): boolean {
         );
 
       case 2: // LeaveUserFeedType
-        return isValidUser(parsed.member) && typeof parsed.hidden === 'boolean';
+        return isValidUser(parsed.member);
 
       case 4: // OpenChatJoinUserFeedType
         return (
@@ -559,12 +563,14 @@ function safeParseAttachment(
     return null;
   }
 
+  const logger = new Logger('Models: safeParseAttachment');
+
   try {
     // 문자열인 경우 JSON 파싱 시도
     let parsed = attachment;
     if (typeof attachment === 'string') {
       try {
-        parsed = JSON.parse(attachment);
+        parsed = safeJsonParseWithReviver(attachment);
       } catch {
         // JSON 파싱 실패 시 원본 문자열 반환
         return attachment;
@@ -666,7 +672,7 @@ function safeParseAttachment(
     // 검증 실패 시 원본 반환
     return parsed;
   } catch (error) {
-    console.warn(
+    logger.warn(
       `Failed to parse attachment for message type ${messageType}:`,
       error
     );
@@ -1579,7 +1585,7 @@ export class ChatContext {
         parseInt(source.type),
         source.message,
         source.attachment,
-        JSON.parse(source.v || '{}')
+        safeJsonParseWithReviver(source.v || '{}')
       );
 
       return new ChatContext(
@@ -1619,7 +1625,7 @@ export class ChatContext {
         parseInt(next.type),
         next.message,
         next.attachment,
-        JSON.parse(next.v || '{}')
+        safeJsonParseWithReviver(next.v || '{}')
       );
 
       return new ChatContext(nextRoom, nextUser, nextMsg, next, this.api);
@@ -1653,7 +1659,7 @@ export class ChatContext {
         parseInt(prev.type),
         prev.message,
         prev.attachment,
-        JSON.parse(prev.v || '{}')
+        safeJsonParseWithReviver(prev.v || '{}')
       );
 
       return new ChatContext(prevRoom, prevUser, prevMsg, prev, this.api);
