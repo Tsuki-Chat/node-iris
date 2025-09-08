@@ -38,7 +38,7 @@ KAKAOLINK_ORIGIN=your_origin
 ```typescript
 import { Bot, ChatContext } from '@racla-dev/node-iris';
 
-const bot = new Bot(process.env.IRIS_URL, { maxWorkers: 4 });
+const bot = new Bot('BotName', process.env.IRIS_URL, { maxWorkers: 4 });
 
 // 메시지 이벤트 핸들러
 bot.on('message', async (context: ChatContext) => {

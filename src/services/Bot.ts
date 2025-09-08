@@ -1131,7 +1131,12 @@ export class Bot {
     let v: VField = {};
 
     try {
-      v = safeJsonParseWithReviver(req.raw.v || '{}') as VField;
+      const vData = req.raw.v;
+      if (typeof vData === 'string') {
+        v = safeJsonParseWithReviver(vData) as VField;
+      } else if (typeof vData === 'object' && vData !== null) {
+        v = vData as VField;
+      }
     } catch {
       // Ignore JSON parse errors
     }

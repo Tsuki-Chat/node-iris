@@ -107,16 +107,39 @@ export function isDefined<T>(value: T | null | undefined): value is T {
  * Safe JSON parse with large integer handling - preprocesses string before parsing
  */
 export function safeJsonParseWithReviver(jsonString: string): any {
-  // JSON 파싱 전에 큰 정수를 문자열로 사전 처리
+  // JSON 파싱 전에 특정 필드의 큰 정수를 문자열로 사전 처리
   let preprocessed = jsonString
-    // userId 필드의 큰 정수를 문자열로 변환
-    .replace(/"userId":\s*(-?\d{16,})/g, '"userId":"$1"')
-    // 모든 16자리 이상의 정수를 문자열로 변환 (단, 이미 문자열이 아닌 경우만)
-    .replace(/:\s*(-?\d{16,})(?=\s*[,\}])/g, ':"$1"');
+    // userId, user_id, userid 필드의 16자리 이상 정수를 문자열로 변환
+    .replace(
+      /"(userId|user_id|userid)":\s*(-?\d{16,})(?=\s*[,\}])/g,
+      '"$1":"$2"'
+    )
+    // logId, log_id, logid 필드의 16자리 이상 정수를 문자열로 변환
+    .replace(/"(logId|log_id|logid)":\s*(-?\d{16,})(?=\s*[,\}])/g, '"$1":"$2"')
+    // chatId, chat_id, chatid 필드의 16자리 이상 정수를 문자열로 변환
+    .replace(
+      /"(chatId|chat_id|chatid)":\s*(-?\d{16,})(?=\s*[,\}])/g,
+      '"$1":"$2"'
+    )
+    // roomId, room_id, roomid 필드의 16자리 이상 정수를 문자열로 변환
+    .replace(
+      /"(roomId|room_id|roomid)":\s*(-?\d{16,})(?=\s*[,\}])/g,
+      '"$1":"$2"'
+    )
+    // src_logId, src_linkId, src_userId 필드의 16자리 이상 정수를 문자열로 변환
+    .replace(
+      /"(src_logId|src_linkId|src_userId)":\s*(-?\d{16,})(?=\s*[,\}])/g,
+      '"$1":"$2"'
+    );
 
   return JSON.parse(preprocessed, (key, value) => {
-    // userId 필드인 경우 항상 문자열로 처리
-    if (key === 'userId' && typeof value === 'number') {
+    // 지정된 필드들은 항상 문자열로 처리
+    if (
+      ['userId', 'user_id', 'userid', 'logId', 'log_id', 'logid'].includes(
+        key
+      ) &&
+      typeof value === 'number'
+    ) {
       return value.toString();
     }
     // 큰 정수 (JavaScript의 안전한 정수 범위를 초과하는 경우) 처리
