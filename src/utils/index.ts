@@ -104,11 +104,35 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 /**
- * Safe JSON parse with default value
+ * Safe JSON parse with large integer handling - preprocesses string before parsing
+ */
+export function safeJsonParseWithReviver(jsonString: string): any {
+  // JSON 파싱 전에 큰 정수를 문자열로 사전 처리
+  let preprocessed = jsonString
+    // userId 필드의 큰 정수를 문자열로 변환
+    .replace(/"userId":\s*(-?\d{16,})/g, '"userId":"$1"')
+    // 모든 16자리 이상의 정수를 문자열로 변환 (단, 이미 문자열이 아닌 경우만)
+    .replace(/:\s*(-?\d{16,})(?=\s*[,\}])/g, ':"$1"');
+
+  return JSON.parse(preprocessed, (key, value) => {
+    // userId 필드인 경우 항상 문자열로 처리
+    if (key === 'userId' && typeof value === 'number') {
+      return value.toString();
+    }
+    // 큰 정수 (JavaScript의 안전한 정수 범위를 초과하는 경우) 처리
+    if (typeof value === 'number' && !Number.isSafeInteger(value)) {
+      return value.toString();
+    }
+    return value;
+  });
+}
+
+/**
+ * Safe JSON parse with default value and large integer handling
  */
 export function safeJsonParse<T>(json: string, defaultValue: T): T {
   try {
-    return JSON.parse(json);
+    return safeJsonParseWithReviver(json);
   } catch {
     return defaultValue;
   }

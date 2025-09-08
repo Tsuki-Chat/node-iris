@@ -4,8 +4,23 @@
 
 import { BatchScheduler } from '../services/BatchScheduler';
 import { ChatContext } from '../types/models';
+import { Logger } from '../utils/logger';
 
 export type DecoratorHandler = (context: ChatContext) => void | Promise<void>;
+
+// Global debug logger for decorators
+let globalDebugLogger: Logger | null = null;
+
+export function setGlobalDebugLogger(logger: Logger) {
+  globalDebugLogger = logger;
+}
+
+export function getGlobalDebugLogger(): Logger {
+  if (!globalDebugLogger) {
+    globalDebugLogger = new Logger('DecoratorMetadata', { logLevel: 'debug' });
+  }
+  return globalDebugLogger;
+}
 
 // Throttle storage for rate limiting
 const throttleStorage = new Map<string, Map<string, number[]>>();
@@ -847,19 +862,8 @@ export function getMessageHandlers(controllerInstance: any): Function[] {
  * Debug function to inspect decorator metadata
  */
 export function debugDecoratorMetadata(controllerInstance: any): void {
-  // Force enable debug logging by creating a temporary winston logger
-  const winston = require('winston');
-  const debugLogger = winston.createLogger({
-    level: 'debug',
-    format: winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-      winston.format.colorize(),
-      winston.format.printf(({ timestamp, level, message }: any) => {
-        return `[${timestamp}] [${level}] [DecoratorMetadata] ${message}`;
-      })
-    ),
-    transports: [new winston.transports.Console()],
-  });
+  // Use global debug logger
+  const debugLogger = getGlobalDebugLogger();
 
   debugLogger.debug(
     `\n=== DEBUG Decorator Metadata for ${controllerInstance.constructor.name} ===`
@@ -1230,18 +1234,7 @@ export function debugRoomRestrictions(
   method: Function,
   controllerConstructor?: Function
 ): void {
-  const winston = require('winston');
-  const debugLogger = winston.createLogger({
-    level: 'debug',
-    format: winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-      winston.format.colorize(),
-      winston.format.printf(({ timestamp, level, message }: any) => {
-        return `[${timestamp}] [${level}] [RoomDebug] ${message}`;
-      })
-    ),
-    transports: [new winston.transports.Console()],
-  });
+  const debugLogger = getGlobalDebugLogger();
 
   debugLogger.debug(`=== Room Restrictions Debug for ${method.name} ===`);
 

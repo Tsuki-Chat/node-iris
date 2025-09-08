@@ -20,6 +20,7 @@ import {
   getScheduleMessageMethods,
   getScheduleMethods,
   isCommandMatch,
+  setGlobalDebugLogger,
 } from '../decorators';
 import {
   ChatContext,
@@ -31,6 +32,7 @@ import {
   User,
   VField,
 } from '../types/models';
+import { safeJsonParseWithReviver } from '../utils';
 import { EventEmitter } from '../utils/eventEmitter';
 import { Logger } from '../utils/logger';
 import { BatchScheduler, ScheduledMessage } from './BatchScheduler';
@@ -46,10 +48,12 @@ export interface BotOptions {
   httpMode?: boolean; // HTTP 웹훅 모드 활성화
   webhookPort?: number; // 웹훅 서버 포트 (기본: 3001)
   webhookPath?: string; // 웹훅 엔드포인트 경로 (기본: /webhook/message)
+  logLevel?: 'error' | 'warn' | 'info' | 'debug'; // 로그 레벨 설정
 }
 
 export class Bot {
   private static instance: Bot | null = null;
+  private static globalLogLevel: 'error' | 'warn' | 'info' | 'debug' = 'info';
 
   private emitter: EventEmitter;
   private irisUrl: string;
@@ -76,11 +80,42 @@ export class Bot {
   private expressApp?: express.Application;
   private httpServer?: any;
 
+  /**
+   * Get global log level for debugging
+   */
+  static getGlobalLogLevel(): 'error' | 'warn' | 'info' | 'debug' {
+    return Bot.globalLogLevel;
+  }
+
+  /**
+   * Create a logger with the global log level
+   */
+  static createLogger(name: string): Logger {
+    return new Logger(name, { logLevel: Bot.globalLogLevel });
+  }
+
   constructor(name: string, irisUrl: string, options: BotOptions = {}) {
     this.name = name;
     this.emitter = new EventEmitter(options.maxWorkers);
-    this.logger = new Logger('Bot', { saveChatLogs: options.saveChatLogs });
-    this.bootstrapLogger = new Logger('Bootstrap');
+
+    // EventEmitter 메모리 누수 방지를 위해 maxListeners 증가
+    process.setMaxListeners(20);
+
+    // 전역 로그 레벨 설정
+    Bot.globalLogLevel = options.logLevel || 'info';
+    this.logger = new Logger('Bot', {
+      saveChatLogs: options.saveChatLogs,
+      logLevel: Bot.globalLogLevel,
+    });
+    this.bootstrapLogger = new Logger('Bootstrap', {
+      logLevel: Bot.globalLogLevel,
+    });
+
+    // Set global debug logger for decorators
+    const debugLogger = new Logger('DecoratorMetadata', {
+      logLevel: Bot.globalLogLevel,
+    });
+    setGlobalDebugLogger(debugLogger);
 
     // Set static instance
     Bot.instance = this;
@@ -1021,7 +1056,7 @@ export class Bot {
       this.ws.on('message', (data: WebSocket.Data) => {
         try {
           const recv = data.toString();
-          const rawData = JSON.parse(recv);
+          const rawData = safeJsonParseWithReviver(recv);
 
           // Restructure data similar to Python implementation
           const processedData = {
@@ -1083,6 +1118,7 @@ export class Bot {
       case 'KICKED':
       case 'SYNCMEMT':
       case 'SYNCREWR':
+      case 'FEED':
         this.emitter.emit('feed', [chat]);
         break;
       default:
@@ -1095,7 +1131,7 @@ export class Bot {
     let v: VField = {};
 
     try {
-      v = JSON.parse(req.raw.v || '{}') as VField;
+      v = safeJsonParseWithReviver(req.raw.v || '{}') as VField;
     } catch {
       // Ignore JSON parse errors
     }
