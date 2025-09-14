@@ -3,8 +3,8 @@
  * Override methods in your bot implementation
  */
 
+import { Logger } from '@/utils/logger';
 import { BaseController } from './BaseController';
-import { Logger } from '../utils/logger';
 
 export class ErrorController extends BaseController {
   private logger: Logger;

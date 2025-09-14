@@ -2,9 +2,8 @@
  * Message Controller for handling chat messages
  */
 
+import { Logger } from '@/utils/logger';
 import { BaseController } from './BaseController';
-import { ChatContext } from '../types/models';
-import { Logger } from '../utils/logger';
 
 export class MessageController extends BaseController {
   private logger: Logger;

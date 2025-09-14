@@ -2,9 +2,9 @@
  * Batch Scheduler for handling scheduled tasks and message batching
  */
 
+import { ChatContext } from '@/types/models';
+import { Logger } from '@/utils/logger';
 import { EventEmitter } from 'events';
-import { ChatContext } from '../types/models';
-import logger from '../utils/logger';
 import * as cron from 'node-cron';
 
 interface ScheduledTask {
@@ -13,7 +13,6 @@ interface ScheduledTask {
   cronJob?: cron.ScheduledTask;
   chatContexts: ChatContext[];
 }
-import { Logger } from '../utils/logger';
 
 export interface ScheduleTask {
   id: string;

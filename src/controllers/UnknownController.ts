@@ -2,9 +2,8 @@
  * Unknown Controller for handling unknown events
  */
 
+import { Logger } from '@/utils/logger';
 import { BaseController } from './BaseController';
-import { ChatContext } from '../types/models';
-import { Logger } from '../utils/logger';
 
 export class UnknownController extends BaseController {
   private logger: Logger;

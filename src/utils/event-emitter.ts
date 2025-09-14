@@ -2,9 +2,9 @@
  * TypeScript port of iris.bot._internal.emitter
  */
 
+import { ErrorContext } from '@/types/models';
 import { EventEmitter as NodeEventEmitter } from 'events';
-import { ErrorContext } from '../types/models';
-import { Logger } from '../utils/logger';
+import { Logger } from './logger';
 
 export type EventHandler = (...args: any[]) => void | Promise<void>;
 

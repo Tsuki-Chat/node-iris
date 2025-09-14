@@ -28,7 +28,9 @@
       "@/*": ["src/*"],
       "@types/*": ["src/types/*"],
       "@utils/*": ["src/utils/*"],
-      "@services/*": ["src/services/*"]
+      "@services/*": ["src/services/*"],
+      "@decorators/*": ["src/decorators/*"],
+      "@controllers/*": ["src/controllers/*"]
     }
   },
   "include": ["src/**/*"],

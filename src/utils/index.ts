@@ -3,6 +3,8 @@
  * Useful when porting Python utilities to TypeScript
  */
 
+import { isInteger, isSafeNumber, parse } from 'lossless-json';
+
 /**
  * Async sleep function (similar to Python's asyncio.sleep)
  */
@@ -104,53 +106,86 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 /**
- * Safe JSON parse with large integer handling - preprocesses string before parsing
+ * Custom number parser for ID fields - converts all integers to BigInt
  */
-export function safeJsonParseWithReviver(jsonString: string): any {
-  // JSON 파싱 전에 특정 필드의 큰 정수를 문자열로 사전 처리
-  let preprocessed = jsonString
-    // userId, user_id, userid 필드의 16자리 이상 정수를 문자열로 변환
-    .replace(
-      /"(userId|user_id|userid)":\s*(-?\d{16,})(?=\s*[,\}])/g,
-      '"$1":"$2"'
-    )
-    // logId, log_id, logid 필드의 16자리 이상 정수를 문자열로 변환
-    .replace(/"(logId|log_id|logid)":\s*(-?\d{16,})(?=\s*[,\}])/g, '"$1":"$2"')
-    // chatId, chat_id, chatid 필드의 16자리 이상 정수를 문자열로 변환
-    .replace(
-      /"(chatId|chat_id|chatid)":\s*(-?\d{16,})(?=\s*[,\}])/g,
-      '"$1":"$2"'
-    )
-    // roomId, room_id, roomid 필드의 16자리 이상 정수를 문자열로 변환
-    .replace(
-      /"(roomId|room_id|roomid)":\s*(-?\d{16,})(?=\s*[,\}])/g,
-      '"$1":"$2"'
-    )
-    // src_logId, src_linkId, src_userId 필드의 16자리 이상 정수를 문자열로 변환
-    .replace(
-      /"(src_logId|src_linkId|src_userId)":\s*(-?\d{16,})(?=\s*[,\}])/g,
-      '"$1":"$2"'
-    );
-
-  return JSON.parse(preprocessed, (key, value) => {
-    // 지정된 필드들은 항상 문자열로 처리
-    if (
-      ['userId', 'user_id', 'userid', 'logId', 'log_id', 'logid'].includes(
-        key
-      ) &&
-      typeof value === 'number'
-    ) {
-      return value.toString();
-    }
-    // 큰 정수 (JavaScript의 안전한 정수 범위를 초과하는 경우) 처리
-    if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-      return value.toString();
-    }
-    return value;
-  });
+export function parseIdSafely(value: string): bigint | number {
+  return isInteger(value) ? BigInt(value) : parseFloat(value);
 }
 
 /**
+ * Parse and validate number - throws error if number cannot be safely represented
+ */
+export function parseAndValidateNumber(value: string): number {
+  if (!isSafeNumber(value)) {
+    throw new Error(`Cannot safely convert value '${value}' into a number`);
+  }
+  return parseFloat(value);
+}
+
+/**
+ * Safe JSON parse with lossless-json for large integer handling
+ */
+export function safeJsonParseWithReviver(jsonString: string): any {
+  try {
+    // Use lossless-json parse with custom number parser for ID fields
+    return parse(jsonString, undefined, (value) => {
+      // For integer values, always use BigInt to preserve precision
+      if (isInteger(value)) {
+        return BigInt(value);
+      }
+
+      // For decimal values, validate they can be safely represented as numbers
+      if (isSafeNumber(value)) {
+        return parseFloat(value);
+      }
+
+      // If number is too large for safe representation, keep as string
+      return value;
+    });
+  } catch (error) {
+    // Fallback to regular JSON.parse if lossless-json fails
+    return JSON.parse(jsonString);
+  }
+}
+
+/**
+ * Convert ID value to string for API compatibility
+ */
+export function idToString(id: bigint | number | string): string {
+  if (typeof id === 'bigint') {
+    return id.toString();
+  }
+  if (typeof id === 'number') {
+    return id.toString();
+  }
+  return id;
+}
+
+/**
+ * Convert any value to bigint for precise numeric operations
+ */
+export function idToBigInt(id: bigint | number | string): bigint {
+  if (typeof id === 'bigint') {
+    return id;
+  }
+  if (typeof id === 'number') {
+    return BigInt(Math.floor(id));
+  }
+  return BigInt(id);
+}
+
+/**
+ * Convert input to SafeId (bigint only)
+ */
+export function toSafeId(id: number | string | bigint): bigint {
+  if (typeof id === 'bigint') {
+    return id;
+  }
+  if (typeof id === 'number') {
+    return BigInt(Math.floor(id));
+  }
+  return BigInt(id);
+} /**
  * Safe JSON parse with default value and large integer handling
  */
 export function safeJsonParse<T>(json: string, defaultValue: T): T {
