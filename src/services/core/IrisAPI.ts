@@ -2,9 +2,9 @@
  * TypeScript port of iris.bot._internal.iris
  */
 
+import { IIrisAPI } from '@/types';
+import { Logger } from '@/utils/logger';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { IIrisAPI } from '../types/interfaces';
-import { Logger } from '../utils/logger';
 
 export interface IrisRequest {
   raw: Record<string, any>;

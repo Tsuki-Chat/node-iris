@@ -3,10 +3,10 @@
  * https://github.com/ye-seola/kakaolink-py
  */
 
+import { Logger } from '@/utils/logger';
 import got, { Got } from 'got';
 import { CookieJar } from 'tough-cookie';
 import { v4 as uuid4 } from 'uuid';
-import { Logger } from '../utils/logger';
 
 const KAKAOTALK_VERSION = '25.2.1';
 const ANDROID_SDK_VER = 33;

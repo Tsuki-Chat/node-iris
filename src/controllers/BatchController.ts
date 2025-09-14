@@ -2,9 +2,8 @@
  * Batch Controller for handling batch processing and scheduled tasks
  */
 
+import { Logger } from '@/utils/logger';
 import { BaseController } from './BaseController';
-import { ChatContext } from '../types/models';
-import { Logger } from '../utils/logger';
 
 export class BatchController extends BaseController {
   private logger: Logger;
@@ -21,7 +20,7 @@ export class BatchController extends BaseController {
   // @Schedule(5000) // 5초마다 실행
   // async processBatchedMessages(contexts: ChatContext[]) {
   //   this.logger.info(`Processing ${contexts.length} batched messages`);
-  //   
+  //
   //   for (const context of contexts) {
   //     // 배치 처리 로직 구현
   //     this.logger.debug(`Processing message from ${await context.sender.getName()}: ${context.message.msg}`);
@@ -35,7 +34,7 @@ export class BatchController extends BaseController {
   // @ScheduleMessage('daily-reminder')
   // async handleScheduledMessage(scheduledMessage: ScheduledMessage) {
   //   const { roomId, message, metadata } = scheduledMessage;
-  //   
+  //
   //   try {
   //     const room = new Room(roomId, '', this.api);
   //     await room.send(message);

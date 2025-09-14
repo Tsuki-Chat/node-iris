@@ -3,9 +3,10 @@
  */
 
 // Main classes
-export { BatchScheduler } from './services/BatchScheduler';
-export { Bot } from './services/Bot';
-export { IrisAPI } from './services/IrisAPI';
+import './paths'; // Ensure path aliases are registered
+export { Bot } from './services/bot/Bot';
+export { BatchScheduler } from './services/core/BatchScheduler';
+export { IrisAPI } from './services/core/IrisAPI';
 export {
   KakaoLink,
   KakaoLink2FAException,
@@ -13,7 +14,7 @@ export {
   KakaoLinkLoginException,
   KakaoLinkReceiverNotFoundException,
   KakaoLinkSendException,
-} from './services/IrisLink';
+} from './services/core/IrisLink';
 export { defaultLogger, Logger, LogLevel } from './utils/logger';
 
 // Alias for compatibility with Python irispy-client module
@@ -24,7 +25,7 @@ export {
   KakaoLinkLoginException as IrisLinkLoginException,
   KakaoLinkReceiverNotFoundException as IrisLinkReceiverNotFoundException,
   KakaoLinkSendException as IrisLinkSendException,
-} from './services/IrisLink';
+} from './services/core/IrisLink';
 
 // Models
 export {
@@ -121,15 +122,19 @@ export {
 
 // Utils
 export { Config } from './utils/config';
-export { EventEmitter } from './utils/eventEmitter';
+export { EventEmitter } from './utils/event-emitter';
 
 // Types
-export type { BotOptions, ErrorHandler, EventHandler } from './services/Bot';
+export type {
+  BotOptions,
+  ErrorHandler,
+  EventHandler,
+} from './services/bot/Bot';
 
 // Version
-export const version = '1.6.28';
+export const version = '1.6.29';
 export const irispy_client_version = '0.1.6';
 
 // Default export is the Bot class for convenience
-import { Bot } from './services/Bot';
+import { Bot } from './services/bot/Bot';
 export default Bot;

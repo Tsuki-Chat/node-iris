@@ -1,9 +1,36 @@
 import { FeedType } from '@/types/models';
+import { stringify } from 'lossless-json';
 import path from 'path';
 import winston from 'winston';
 
 // 로그 레벨 정의
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+
+// 순환 참조를 처리하는 stringify replacer 함수
+function getCircularReplacer() {
+  const seen = new WeakSet();
+  return (key: string, value: any) => {
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return '[Circular]';
+      }
+      seen.add(value);
+    }
+    // 함수는 직렬화하지 않음
+    if (typeof value === 'function') {
+      return '[Function]';
+    }
+    // BigInt는 문자열로 변환
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    // undefined는 null로 변환
+    if (value === undefined) {
+      return null;
+    }
+    return value;
+  };
+}
 
 // 로그 포맷 설정
 const logFormat = winston.format.combine(
@@ -14,9 +41,13 @@ const logFormat = winston.format.combine(
   winston.format.printf(({ timestamp, level, message, stack, ...meta }) => {
     let log = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
 
-    // 메타데이터가 있으면 추가
+    // 메타데이터가 있으면 추가 (안전한 stringify 사용)
     if (Object.keys(meta).length > 0) {
-      log += ' ' + JSON.stringify(meta);
+      try {
+        log += ' ' + stringify(meta, getCircularReplacer());
+      } catch (error) {
+        log += ' [Medata serialization error]';
+      }
     }
 
     // 스택 트레이스가 있으면 추가
@@ -44,9 +75,13 @@ const logger = winston.createLogger({
           ({ timestamp, level, message, stack, ...meta }) => {
             let log = `[${timestamp}] [${level}] ${message}`;
 
-            // 메타데이터가 있으면 추가
+            // 메타데이터가 있으면 추가 (안전한 stringify 사용)
             if (Object.keys(meta).length > 0) {
-              log += ' ' + JSON.stringify(meta);
+              try {
+                log += ' ' + stringify(meta, getCircularReplacer());
+              } catch (error) {
+                log += ' [메타데이터 직렬화 오류]';
+              }
             }
 
             // 스택 트레이스가 있으면 추가
@@ -136,9 +171,13 @@ export class Logger {
               ({ timestamp, level, message, stack, ...meta }) => {
                 let log = `[${timestamp}] [${level}] ${message}`;
 
-                // 메타데이터가 있으면 추가
+                // 메타데이터가 있으면 추가 (안전한 stringify 사용)
                 if (Object.keys(meta).length > 0) {
-                  log += ' ' + JSON.stringify(meta);
+                  try {
+                    log += ' ' + stringify(meta, getCircularReplacer());
+                  } catch (error) {
+                    log += ' [메타데이터 직렬화 오류]';
+                  }
                 }
 
                 // 스택 트레이스가 있으면 추가
@@ -238,7 +277,7 @@ export class Logger {
     message: string | FeedType
   ): void {
     const logMessage = this.formatMessage(
-      `[${type}] [${roomName}] ${senderName}: ${message}`
+      `[${type.replace(' | ', '] [')}] [${roomName}] ${senderName}: ${message}`
     );
 
     // 콘솔에는 항상 출력

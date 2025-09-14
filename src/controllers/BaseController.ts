@@ -2,8 +2,6 @@
  * Base Controller class for bot command handling
  */
 
-import { ChatContext } from '../types/models';
-
 export abstract class BaseController {
   protected kakaoLink?: any;
 
