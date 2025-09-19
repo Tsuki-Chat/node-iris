@@ -34,8 +34,11 @@ function createMessageHandlerDecorator(
     };
 
     // 여러 방식으로 메타데이터 저장 (AllowedRoom과 일관성 유지)
+    // originalMethod와 새로운 descriptor.value 모두에 메타데이터 저장
     decoratorMetadata.set(originalMethod, metadata);
+    decoratorMetadata.set(descriptor.value, metadata);
     (originalMethod as any).__decoratorMetadata = metadata;
+    (descriptor.value as any).__decoratorMetadata = metadata;
 
     return descriptor;
   };

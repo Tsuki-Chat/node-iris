@@ -43,55 +43,55 @@ export function isFeedMessage(
 export function isInviteUserFeed(
   msg: ParsedMessageType
 ): msg is InviteUserFeedType {
-  return isFeedMessage(msg) && msg.feedType === 1;
+  return isFeedMessage(msg) && Number(msg.feedType) === 1;
 }
 
 export function isLeaveUserFeed(
   msg: ParsedMessageType
 ): msg is LeaveUserFeedType {
-  return isFeedMessage(msg) && msg.feedType === 2;
+  return isFeedMessage(msg) && Number(msg.feedType) === 2;
 }
 
 export function isOpenChatJoinUserFeed(
   msg: ParsedMessageType
 ): msg is OpenChatJoinUserFeedType {
-  return isFeedMessage(msg) && msg.feedType === 4;
+  return isFeedMessage(msg) && Number(msg.feedType) === 4;
 }
 
 export function isOpenChatKickedUserFeed(
   msg: ParsedMessageType
 ): msg is OpenChatKickedUserType {
-  return isFeedMessage(msg) && msg.feedType === 6;
+  return isFeedMessage(msg) && Number(msg.feedType) === 6;
 }
 
 export function isOpenChatPromoteManagerFeed(
   msg: ParsedMessageType
 ): msg is OpenChatPromoteManagerType {
-  return isFeedMessage(msg) && msg.feedType === 11;
+  return isFeedMessage(msg) && Number(msg.feedType) === 11;
 }
 
 export function isOpenChatDemoteManagerFeed(
   msg: ParsedMessageType
 ): msg is OpenChatDemoteManagerType {
-  return isFeedMessage(msg) && msg.feedType === 12;
+  return isFeedMessage(msg) && Number(msg.feedType) === 12;
 }
 
 export function isDeleteMessageFeed(
   msg: ParsedMessageType
 ): msg is DeleteMessageType {
-  return isFeedMessage(msg) && msg.feedType === 14;
+  return isFeedMessage(msg) && Number(msg.feedType) === 14;
 }
 
 export function isOpenChatHandOverHostFeed(
   msg: ParsedMessageType
 ): msg is OpenChatHandOverHostType {
-  return isFeedMessage(msg) && msg.feedType === 15;
+  return isFeedMessage(msg) && Number(msg.feedType) === 15;
 }
 
 export function isOpenChatHideMessageFeed(
   msg: ParsedMessageType
 ): msg is OpenChatHideMessageType {
-  return isFeedMessage(msg) && msg.feedType === 26;
+  return isFeedMessage(msg) && Number(msg.feedType) === 26;
 }
 
 // 첨부파일 타입 체크 유틸리티 함수들
@@ -288,21 +288,32 @@ export function safeParseMessage(message: string): ParsedMessageType {
     // JSON reviver 함수를 사용하여 큰 정수를 문자열로 보존
     const parsed = safeJsonParseWithReviver(message);
 
-    // feedType이 존재하고 숫자인지 확인
+    // feedType이 존재하고 숫자인지 확인 (BigInt도 허용)
     if (
       parsed &&
       typeof parsed === 'object' &&
       parsed.feedType &&
-      typeof parsed.feedType === 'number'
+      (typeof parsed.feedType === 'number' ||
+        typeof parsed.feedType === 'bigint')
     ) {
-      const feedType = parsed.feedType;
+      // BigInt를 number로 변환
+      const feedType =
+        typeof parsed.feedType === 'bigint'
+          ? Number(parsed.feedType)
+          : parsed.feedType;
 
       // 매핑 테이블에서 지원하는 feedType인지 확인
       if (feedType in FEED_TYPE_MAP) {
+        // feedType을 number로 정규화
+        const normalizedParsed = {
+          ...parsed,
+          feedType: feedType,
+        };
+
         // 기본적인 구조 검증
-        const isValid = validateFeedStructure(parsed, feedType);
+        const isValid = validateFeedStructure(normalizedParsed, feedType);
         if (isValid) {
-          return parsed as ParsedMessageType;
+          return normalizedParsed as ParsedMessageType;
         }
       }
 
@@ -354,7 +365,13 @@ function validateFeedStructure(parsed: any, feedType: number): boolean {
         return isValidUser(parsed.member);
 
       case 14: // DeleteMessageType
-        return parsed.logId && typeof parsed.hidden === 'boolean';
+        return (
+          parsed.logId &&
+          (typeof parsed.logId === 'string' ||
+            typeof parsed.logId === 'number' ||
+            typeof parsed.logId === 'bigint') &&
+          typeof parsed.hidden === 'boolean'
+        );
 
       case 15: // OpenChatHandOverHostType
         return isValidUser(parsed.newHost) && isValidUser(parsed.prevHost);
@@ -362,6 +379,9 @@ function validateFeedStructure(parsed: any, feedType: number): boolean {
       case 26: // OpenChatHideMessageType
         return (
           parsed.logId &&
+          (typeof parsed.logId === 'string' ||
+            typeof parsed.logId === 'number' ||
+            typeof parsed.logId === 'bigint') &&
           typeof parsed.hidden === 'boolean' &&
           Array.isArray(parsed.chatLogInfos)
         );

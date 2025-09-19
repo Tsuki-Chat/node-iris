@@ -36,7 +36,28 @@ import {
 
 // bigint ID를 안전하게 검증하는 헬퍼 함수
 function isValidId(value: any): boolean {
-  return value || value === 0 || value === '0' || value === 0n;
+  // null 또는 undefined 체크
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  // BigInt 타입 처리 (lossless-json에서 정수를 BigInt로 파싱함)
+  if (typeof value === 'bigint') {
+    return true; // 모든 BigInt 값(0n 포함)을 유효한 것으로 간주
+  }
+
+  // 문자열 타입 처리
+  if (typeof value === 'string') {
+    return value !== ''; // 빈 문자열이 아니면 유효
+  }
+
+  // 숫자 타입 처리 (0 포함)
+  if (typeof value === 'number') {
+    return true; // 모든 숫자 값(0, NaN 포함)을 유효한 것으로 간주
+  }
+
+  // 기타 truthy 값들
+  return !!value;
 }
 
 function validateMentionListAttachment(obj: any): boolean {

@@ -259,16 +259,14 @@ export class BatchScheduler {
       if (!task.isActive || !task.interval) continue; // cron 태스크는 건너뛰기
 
       if (now - task.lastRun >= task.interval) {
-        if (task.contexts.length > 0) {
-          try {
-            this.logger.debug(
-              `Executing schedule task: ${id} with ${task.contexts.length} contexts`
-            );
-            await task.handler([...task.contexts]);
-            task.contexts = []; // 처리 후 컨텍스트 초기화
-          } catch (error) {
-            this.logger.error(`Schedule task error for ${id}:`, error);
-          }
+        try {
+          this.logger.debug(
+            `Executing schedule task: ${id} with ${task.contexts.length} contexts`
+          );
+          await task.handler([...task.contexts]);
+          task.contexts = []; // 처리 후 컨텍스트 초기화
+        } catch (error) {
+          this.logger.error(`Schedule task error for ${id}:`, error);
         }
         task.lastRun = now;
       }
