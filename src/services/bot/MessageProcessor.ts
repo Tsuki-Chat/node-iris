@@ -3,16 +3,19 @@ import { IrisRequest, VField } from '@/types/models/base';
 import { ChatContext, Room, User } from '@/types/models/classes';
 import { Message } from '@/types/models/message';
 import { safeJsonParseWithReviver, toSafeId } from '@/utils';
+import { Logger } from '@/utils/logger';
 import { EventManager } from './EventManager';
 
 export class MessageProcessor {
   private eventManager: EventManager;
   private api: IrisAPI;
   private botId?: string;
+  private logger: Logger;
 
   constructor(eventManager: EventManager, api: IrisAPI) {
     this.eventManager = eventManager;
     this.api = api;
+    this.logger = new Logger('MessageProcessor');
   }
 
   /**
@@ -69,16 +72,29 @@ export class MessageProcessor {
     this.eventManager.emit('chat', [chat]);
 
     const origin = chat.message.v?.origin;
+    const messageType = chat.message.type;
+    const isFeedMessage = chat.message.isFeedMessage();
+
+    this.logger.debug('Processing chat message', {
+      origin,
+      messageType,
+      isFeedMessage,
+      rawMessage: chat.message.msg,
+      vField: chat.message.v,
+    });
 
     switch (origin) {
       case 'MSG':
       case 'WRITE':
+        this.logger.debug('Emitting message event');
         this.eventManager.emit('message', [chat]);
         break;
       case 'NEWMEM':
+        this.logger.debug('Emitting new_member event');
         this.eventManager.emit('new_member', [chat]);
         break;
       case 'DELMEM':
+        this.logger.debug('Emitting del_member event');
         this.eventManager.emit('del_member', [chat]);
         break;
       // Feed message origins
@@ -88,9 +104,11 @@ export class MessageProcessor {
       case 'SYNCMEMT':
       case 'SYNCREWR':
       case 'FEED':
+        this.logger.debug('Emitting feed event', { origin, isFeedMessage });
         this.eventManager.emit('feed', [chat]);
         break;
       default:
+        this.logger.debug('Emitting unknown event', { origin });
         this.eventManager.emit('unknown', [chat]);
         break;
     }
