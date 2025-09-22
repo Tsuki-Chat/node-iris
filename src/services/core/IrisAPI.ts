@@ -54,7 +54,10 @@ export class IrisAPI implements IIrisAPI {
         data: String(message),
       };
 
-      const response = await this.httpClient.post('/reply', this.sanitizeForJSON(requestData));
+      const response = await this.httpClient.post(
+        '/reply',
+        this.sanitizeForJSON(requestData)
+      );
 
       return this.parse(response);
     } catch (error) {
@@ -81,7 +84,10 @@ export class IrisAPI implements IIrisAPI {
         data: data.length === 1 ? data[0] : data,
       };
 
-      const response = await this.httpClient.post('/reply', this.sanitizeForJSON(requestData));
+      const response = await this.httpClient.post(
+        '/reply',
+        this.sanitizeForJSON(requestData)
+      );
 
       return this.parse(response);
     } catch (error) {
@@ -151,7 +157,10 @@ export class IrisAPI implements IIrisAPI {
         data: data.length === 1 ? data[0] : data,
       };
 
-      const response = await this.httpClient.post('/reply', this.sanitizeForJSON(requestData));
+      const response = await this.httpClient.post(
+        '/reply',
+        this.sanitizeForJSON(requestData)
+      );
 
       this.logger.debug(
         `Successfully sent ${data.length} images to room ${roomId}`
@@ -185,7 +194,10 @@ export class IrisAPI implements IIrisAPI {
         user_id: String(userId), // userId도 문자열로 변환
       };
 
-      const response = await this.httpClient.post('/decrypt', this.sanitizeForJSON(requestData));
+      const response = await this.httpClient.post(
+        '/decrypt',
+        this.sanitizeForJSON(requestData)
+      );
 
       const result = this.parse(response);
       return result?.plain_text || null;
@@ -202,11 +214,11 @@ export class IrisAPI implements IIrisAPI {
     if (typeof value === 'bigint') {
       return value.toString();
     }
-    
+
     if (Array.isArray(value)) {
-      return value.map(item => this.sanitizeForJSON(item));
+      return value.map((item) => this.sanitizeForJSON(item));
     }
-    
+
     if (value !== null && typeof value === 'object') {
       const sanitized: any = {};
       for (const [key, val] of Object.entries(value)) {
@@ -214,7 +226,7 @@ export class IrisAPI implements IIrisAPI {
       }
       return sanitized;
     }
-    
+
     return value;
   }
 
