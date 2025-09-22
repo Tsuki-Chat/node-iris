@@ -99,8 +99,8 @@ export function HelpCommand(command: string) {
       const helpLines: string[] = [];
 
       // Add header with bot name
-      helpLines.push(`${botName} 도움말`);
-      helpLines.push('\u200b'.repeat(500));
+      helpLines.push(`${botName} 도움말${'\u200b'.repeat(500)}`);
+      helpLines.push('');
 
       // Group commands by method to avoid duplicates
       const commandGroups = new Map<string, any>();
