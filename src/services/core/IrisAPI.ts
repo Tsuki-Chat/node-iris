@@ -48,11 +48,13 @@ export class IrisAPI implements IIrisAPI {
 
   async reply(roomId: string | number, message: string): Promise<any> {
     try {
-      const response = await this.httpClient.post('/reply', {
+      const requestData = {
         type: 'text',
         room: String(roomId),
         data: String(message),
-      });
+      };
+
+      const response = await this.httpClient.post('/reply', this.sanitizeForJSON(requestData));
 
       return this.parse(response);
     } catch (error) {
@@ -73,11 +75,13 @@ export class IrisAPI implements IIrisAPI {
         return;
       }
 
-      const response = await this.httpClient.post('/reply', {
+      const requestData = {
         type: data.length === 1 ? 'image' : 'image_multiple',
         room: String(roomId),
         data: data.length === 1 ? data[0] : data,
-      });
+      };
+
+      const response = await this.httpClient.post('/reply', this.sanitizeForJSON(requestData));
 
       return this.parse(response);
     } catch (error) {
@@ -141,11 +145,13 @@ export class IrisAPI implements IIrisAPI {
       // Convert to base64
       const data = imageBuffers.map((buffer) => buffer.toString('base64'));
 
-      const response = await this.httpClient.post('/reply', {
+      const requestData = {
         type: data.length === 1 ? 'image' : 'image_multiple',
         room: String(roomId),
         data: data.length === 1 ? data[0] : data,
-      });
+      };
+
+      const response = await this.httpClient.post('/reply', this.sanitizeForJSON(requestData));
 
       this.logger.debug(
         `Successfully sent ${data.length} images to room ${roomId}`
@@ -173,11 +179,13 @@ export class IrisAPI implements IIrisAPI {
     userId: string | number
   ): Promise<string | null> {
     try {
-      const response = await this.httpClient.post('/decrypt', {
+      const requestData = {
         enc,
         b64_ciphertext: b64Ciphertext,
         user_id: String(userId), // userId도 문자열로 변환
-      });
+      };
+
+      const response = await this.httpClient.post('/decrypt', this.sanitizeForJSON(requestData));
 
       const result = this.parse(response);
       return result?.plain_text || null;
@@ -187,11 +195,37 @@ export class IrisAPI implements IIrisAPI {
     }
   }
 
+  /**
+   * BigInt 값을 문자열로 변환하여 JSON 직렬화 문제를 해결
+   */
+  private sanitizeForJSON(value: any): any {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    
+    if (Array.isArray(value)) {
+      return value.map(item => this.sanitizeForJSON(item));
+    }
+    
+    if (value !== null && typeof value === 'object') {
+      const sanitized: any = {};
+      for (const [key, val] of Object.entries(value)) {
+        sanitized[key] = this.sanitizeForJSON(val);
+      }
+      return sanitized;
+    }
+    
+    return value;
+  }
+
   async query(query: string, bind: any[] = []): Promise<any[]> {
     try {
+      // BigInt 값을 문자열로 변환하여 직렬화 문제 해결
+      const sanitizedBind = this.sanitizeForJSON(bind);
+
       const response = await this.httpClient.post('/query', {
         query,
-        bind,
+        bind: sanitizedBind,
       });
 
       const result = this.parse(response);
