@@ -91,3 +91,4 @@ export type ParsedMessageType =
   | DeleteMessageType
   | OpenChatHandOverHostType
   | OpenChatHideMessageType;
+// | CommunityChatThreadMessageType;
