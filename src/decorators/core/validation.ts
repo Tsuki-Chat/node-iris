@@ -204,6 +204,19 @@ export function AllowedRoom(roomIds: string[]) {
     propertyKey: string,
     descriptor: PropertyDescriptor
   ) {
+    const originalMethod = descriptor.value;
+
+    descriptor.value = async function (context: ChatContext) {
+      const currentRoomId = context.room.getIdAsString();
+
+      // Check if current room is in allowed rooms
+      if (!roomIds.includes(currentRoomId)) {
+        return; // Silently ignore if room is not allowed
+      }
+
+      return originalMethod.call(this, context);
+    };
+
     // Store room restrictions in multiple ways for compatibility
     (descriptor.value as any).__allowedRooms = roomIds;
 
