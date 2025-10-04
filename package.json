@@ -1,6 +1,6 @@
 {
-  "name": "@racla-dev/node-iris",
-  "version": "1.6.37",
+  "name": "@tsuki-chat/node-iris",
+  "version": "1.6.39",
   "description": "TypeScript port of Python irispy-client module for KakaoTalk bot development",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,11 +24,11 @@
     "chat",
     "messaging"
   ],
-  "author": "RACLA-DEV",
+  "author": "Tsuki-Chat",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RACLA-DEV/node-iris.git"
+    "url": "https://github.com/Tsuki-Chat/node-iris.git"
   },
   "files": [
     "dist/**/*.js",

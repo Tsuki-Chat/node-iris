@@ -589,7 +589,7 @@ export default class MessageController {
 
 ## 라이선스
 
-[MIT](https://github.com/RACLA-DEV/node-iris/LICENSE)
+[MIT](https://github.com/Tsuki-Chat/node-iris/LICENSE)
 
 ## 참조
 
