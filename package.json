@@ -1,6 +1,6 @@
 {
   "name": "@tsuki-chat/node-iris",
-  "version": "1.6.41",
+  "version": "1.6.44",
   "description": "TypeScript port of Python irispy-client module for KakaoTalk bot development",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

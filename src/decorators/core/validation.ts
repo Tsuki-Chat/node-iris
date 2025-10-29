@@ -4,7 +4,7 @@
 
 import { ChatContext } from '@/types/models';
 import type { DecoratorHandler } from './base';
-import { throttleStorage } from './base';
+import { decoratorMetadata, throttleStorage } from './base';
 
 /**
  * Decorator that only executes if message has parameters
@@ -196,37 +196,92 @@ export function Throttle(
 
 /**
  * Room decorator for restricting execution to specific rooms
+ * Can be used as both class decorator and method decorator
  * @param roomIds - 허용된 방 ID 배열
  */
-export function AllowedRoom(roomIds: string[]) {
+export function AllowedRoom(
+  roomIds: string[]
+): ClassDecorator & MethodDecorator {
   return function (
     target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
+    propertyKey?: string | symbol,
+    descriptor?: PropertyDescriptor
+  ): any {
+    // Class decorator: target is the constructor
+    if (!propertyKey && !descriptor) {
+      // Store room restrictions on the class (used by EventManager)
+      target.__allowedRooms = roomIds;
+      target.prototype.__allowedRooms = roomIds;
 
-    descriptor.value = async function (context: ChatContext) {
-      const currentRoomId = context.room.getIdAsString();
+      // Store metadata on all methods (for EventManager's isRoomAllowed check)
+      const propertyNames = Object.getOwnPropertyNames(target.prototype);
+      propertyNames.forEach((name) => {
+        if (name === 'constructor') return;
 
-      // Check if current room is in allowed rooms
-      if (!roomIds.includes(currentRoomId)) {
-        return; // Silently ignore if room is not allowed
-      }
+        const propertyDescriptor = Object.getOwnPropertyDescriptor(
+          target.prototype,
+          name
+        );
+        if (
+          !propertyDescriptor ||
+          typeof propertyDescriptor.value !== 'function'
+        ) {
+          return;
+        }
 
-      return originalMethod.call(this, context);
-    };
+        const method = propertyDescriptor.value;
 
-    // Store room restrictions in multiple ways for compatibility
-    (descriptor.value as any).__allowedRooms = roomIds;
+        // Skip if method already has room restrictions (method-level takes precedence)
+        if ((method as any).__allowedRooms) {
+          return;
+        }
 
-    // Also store in decorator metadata for consistency
-    (descriptor.value as any).__decoratorMetadata = {
-      ...(descriptor.value as any).__decoratorMetadata,
-      allowedRooms: roomIds,
-    };
+        // Store room restrictions as metadata (EventManager will check this)
+        (method as any).__allowedRooms = roomIds;
+        (method as any).__decoratorMetadata = {
+          ...(method as any).__decoratorMetadata,
+          allowedRooms: roomIds,
+        };
 
-    return descriptor;
+        // Also store in the metadata map
+        const existingMetadata = decoratorMetadata.get(method) || {
+          commands: [],
+          hasDecorators: false,
+        };
+        decoratorMetadata.set(method, {
+          ...existingMetadata,
+          allowedRooms: roomIds,
+        });
+      });
+
+      return target;
+    }
+
+    // Method decorator: propertyKey and descriptor are provided
+    if (propertyKey && descriptor) {
+      const method = descriptor.value;
+
+      // Store room restrictions in multiple ways for EventManager compatibility
+      (method as any).__allowedRooms = roomIds;
+
+      // Store in decorator metadata property
+      (method as any).__decoratorMetadata = {
+        ...(method as any).__decoratorMetadata,
+        allowedRooms: roomIds,
+      };
+
+      // Store in the metadata map
+      const existingMetadata = decoratorMetadata.get(method) || {
+        commands: [],
+        hasDecorators: false,
+      };
+      decoratorMetadata.set(method, {
+        ...existingMetadata,
+        allowedRooms: roomIds,
+      });
+
+      return descriptor;
+    }
   };
 }
 
