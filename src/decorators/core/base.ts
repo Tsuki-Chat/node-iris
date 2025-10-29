@@ -43,7 +43,12 @@ export const methodPrefixStorage = new Map<Function, string>();
 // Decorator metadata storage
 export const decoratorMetadata = new Map<
   Function,
-  { commands: string[]; hasDecorators: boolean; isMessageHandler?: boolean }
+  {
+    commands: string[];
+    hasDecorators: boolean;
+    isMessageHandler?: boolean;
+    allowedRooms?: string[];
+  }
 >();
 
 /**
